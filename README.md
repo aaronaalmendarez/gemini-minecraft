@@ -11,7 +11,7 @@
 [![Official Release](https://img.shields.io/badge/Release-v1.0.0_Official-purple?style=for-the-badge)](https://github.com/aaronaalmendarez/gemini-minecraft/releases/tag/v1.0.0)
 [![MIT License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-[**Quick Start**](#-getting-started) • [**Features**](#-pillars-of-intelligence) • [**Commands**](#-command-terminal) • [**Technical Specs**](#-the-nerd-stack)
+[**Quick Start**](#-getting-started) • [**Features**](#-pillars-of-intelligence) • [**Roadmap**](#-roadmap) • [**Commands**](#-command-terminal) • [**Technical Specs**](#-the-nerd-stack)
 
 ---
 
@@ -32,6 +32,16 @@
 
 > *“Build me a small house”*  
 > *“Find the nearest village”*
+
+---
+
+## 🎯 Who Is This For?
+
+This project is ideal for:
+- **Minecraft Modders**: Experimenting with AI-driven gameplay and orchestration.
+- **AI Developers**: Interested in seeing autonomous agents operate within complex sandbox environments.
+- **Server Owners**: Looking to add next-level, immersive NPC intelligence to their worlds.
+- **Players**: Who want a truly unique, voice-controlled, and narrative-driven Minecraft experience.
 
 ---
 
@@ -79,10 +89,14 @@ Stop thinking of it as a "chatbot." Start thinking of it as your **Second Pilot*
 >
 > **Gemini:** Executes `/locate structure village` → Parses coordinates → Executes `/tp` → Executes `/spawnpoint` → "Welcome to the village. Your spawn is secured."
 
-#### 🛡️ Scenario C: The Self-Healing Engineer
+<details>
+<summary><b>Scenario C: The Self-Healing Engineer</b></summary>
+
 > **You:** "Give me a sword with level 10 Sharpness."
 >
 > **Gemini:** *Attempts old NBT syntax* → **Minecraft returns error** → **Gemini analyzes error** → *Realizes 1.21.1 uses Components* → Re-issues command using `[minecraft:enchantments={levels:{'minecraft:sharpness':10}}]` → **Success.**
+
+</details>
 
 #### 🛠️ Scenario D: Modpack Mastery
 > **You:** "How do I make a Digital Miner from Mekanism?"
@@ -286,6 +300,33 @@ The mod maintains strict separation between the **Netty Work Pool** (Networking)
 - **Async Workers**: API calls, JSON Parsing, Transcript Cleaning.
 - **Netty**: Packet handling (C2S/S2C).
 </details>
+
+---
+
+## 🗺️ Roadmap
+
+The journey to true digital agency is just beginning. Here is where we're headed:
+
+- [ ] **Multiplayer-Aware Memory**: Shared AI context that recognizes different players and their unique histories.
+- [ ] **AI Vision (Screenshots)**: Allow the AI to "see" what you see via automated frame analysis.
+- [ ] **Voice Synthesis (TTS)**: The AI talks back to you with custom, high-quality personality profiles.
+- [ ] **Plugin API**: A framework for creators to write custom behaviors/skills for the AI.
+- [ ] **Cross-Loader Support**: Bringing the companion to NeoForge/Forge.
+
+---
+
+## 🤝 Contributing
+
+Contributions are what make the open-source community an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+> [!NOTE]
+> Please open an issue first for major changes to ensure alignment with the project's vision.
 
 ---
 
