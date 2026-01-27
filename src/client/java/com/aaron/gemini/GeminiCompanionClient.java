@@ -84,25 +84,23 @@ public class GeminiCompanionClient implements ClientModInitializer {
 		});
 
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
-			dispatcher.register(ClientCommandManager.literal("chat")
-				.then(ClientCommandManager.literal("voice")
-					.then(ClientCommandManager.literal("on").executes(context -> {
-						VOICE_CONFIG.enabled = true;
-						saveClientConfig();
-						sendClientMessage("Voice input enabled.");
-						return 1;
-					}))
-					.then(ClientCommandManager.literal("off").executes(context -> {
-						VOICE_CONFIG.enabled = false;
-						saveClientConfig();
-						sendClientMessage("Voice input disabled.");
-						return 1;
-					}))
-					.then(ClientCommandManager.literal("status").executes(context -> {
-						sendClientMessage("Voice input is " + (VOICE_CONFIG.enabled ? "ON" : "OFF") + ".");
-						return 1;
-					}))
-				)
+			dispatcher.register(ClientCommandManager.literal("chatvoice")
+				.then(ClientCommandManager.literal("on").executes(context -> {
+					VOICE_CONFIG.enabled = true;
+					saveClientConfig();
+					sendClientMessage("Voice input enabled.");
+					return 1;
+				}))
+				.then(ClientCommandManager.literal("off").executes(context -> {
+					VOICE_CONFIG.enabled = false;
+					saveClientConfig();
+					sendClientMessage("Voice input disabled.");
+					return 1;
+				}))
+				.then(ClientCommandManager.literal("status").executes(context -> {
+					sendClientMessage("Voice input is " + (VOICE_CONFIG.enabled ? "ON" : "OFF") + ".");
+					return 1;
+				}))
 			);
 		});
 
