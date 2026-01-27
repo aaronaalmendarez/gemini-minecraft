@@ -437,7 +437,8 @@ public class MyFirstFabricModClient implements ClientModInitializer {
 			voiceButton = addStyledButton(leftCol, row, "Voice", this::toggleVoice, ButtonStyle.TOGGLE_ON);
 			modelButton = addStyledButton(rightCol, row, "Model", this::cycleModel, ButtonStyle.ACTION);
 			row += 24;
-			micButton = addStyledButton(leftCol, row, "Microphone", this::toggleMicDropdown, ButtonStyle.ACTION);
+			micButton = addStyledButton(rightCol, row, "Microphone", this::toggleMicDropdown, ButtonStyle.ACTION);
+			row += 24;
 			retriesRowY = row;
 			retriesMinus = addSmallStyledButton(panelX + PANEL_WIDTH / 2 - 52, row, SMALL_BUTTON_WIDTH, "-", () -> adjustRetries(-1), ButtonStyle.ACTION);
 			retriesPlus = addSmallStyledButton(panelX + PANEL_WIDTH / 2 + 22, row, SMALL_BUTTON_WIDTH, "+", () -> adjustRetries(1), ButtonStyle.ACTION);
@@ -596,7 +597,11 @@ public class MyFirstFabricModClient implements ClientModInitializer {
 			}
 			micDropdownWidth = BUTTON_WIDTH;
 			micDropdownX = micButton.getX();
-			micDropdownY = micButton.getY() + BUTTON_HEIGHT + 4;
+			int height = display.size() * (BUTTON_HEIGHT + 2) + 4;
+			int belowY = micButton.getY() + BUTTON_HEIGHT + 4;
+			int aboveY = micButton.getY() - height - 4;
+			int panelBottom = panelY + PANEL_HEIGHT - 40;
+			micDropdownY = (belowY + height <= panelBottom) ? belowY : Math.max(panelY + 20, aboveY);
 			int y = micDropdownY;
 			for (String device : display) {
 				String label = shortenLabel(device, 18);
@@ -732,7 +737,12 @@ public class MyFirstFabricModClient implements ClientModInitializer {
 					&& mouseX <= micDropdownX + micDropdownWidth + 4
 					&& mouseY >= micDropdownY - 4
 					&& mouseY <= micDropdownY + (micOptionButtons.size() * (BUTTON_HEIGHT + 2)) + 4;
-				if (!inside) {
+				boolean onMicButton = micButton != null
+					&& mouseX >= micButton.getX()
+					&& mouseX <= micButton.getX() + micButton.getWidth()
+					&& mouseY >= micButton.getY()
+					&& mouseY <= micButton.getY() + micButton.getHeight();
+				if (!inside && !onMicButton) {
 					micDropdownOpen = false;
 					hideMicDropdownButtons();
 				}

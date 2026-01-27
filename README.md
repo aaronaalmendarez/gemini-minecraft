@@ -1,137 +1,94 @@
-<p align="center">
-  <img src="readme_resources/banner.png" width="800" />
-</p>
+<div align="center">
 
-<h1 align="center">🌌 Gemini AI Companion</h1>
-<p align="center"><i>A next-generation AI orchestration layer for Minecraft, powered by Google Gemini 3.</i></p>
+![Gemini AI Companion](readme_resources/banner.png)
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Minecraft-1.21.1-62B47A?style=for-the-badge&logo=minecraft&logoColor=white">
-  <img src="https://img.shields.io/badge/Fabric-Mod-DFD4BC?style=for-the-badge">
-  <img src="https://img.shields.io/badge/Powered%20by-Gemini%203-8E75B2?style=for-the-badge&logo=google&logoColor=white">
-  <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge">
-</p>
+# 🌌 Gemini AI Companion
+### *The Next-Generation Orchestration Layer for Minecraft*
 
-<p align="center">
-  <a href="#-getting-started">Getting Started</a> •
-  <a href="#-features">Features</a> •
-  <a href="#-commands">Commands</a> •
-  <a href="#-technical-report-architecture--implementation">How it Works</a>
-</p>
+[![Minecraft 1.21.1](https://img.shields.io/badge/Minecraft-1.21.1-blue?style=for-the-badge&logo=minecraft)](https://www.minecraft.net/)
+[![Fabric](https://img.shields.io/badge/Fabric-Loader-9c8a7b?style=for-the-badge&logo=fabric)](https://fabricmc.net/)
+[![Gemini 3.0](https://img.shields.io/badge/Power-Gemini_3.0-orange?style=for-the-badge&logo=google-gemini)](https://deepmind.google/technologies/gemini/)
+[![MIT License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" />
-</p>
+[**Quick Start**](#🚀-getting-started) • [**Features**](#💎-pillars-of-intelligence) • [**Commands**](#📟-command-terminal) • [**Technical Specs**](#🛠️-the-nerd-stack)
 
-<h2 align="center">🎬 See It In Action</h2>
+---
 
-<p align="center">
-  <img src="readme_resources/demo.gif" width="750">
-  <br>
-  <i>▲ Real-time command execution and natural language reasoning</i>
-</p>
+### *“The first AI that doesn't just talk to you—it lives in your world.”*
 
-<p align="center">
+![Demo](readme_resources/demo.gif)
+
+</div>
+
+## 💎 Pillars of Intelligence
+
+Gemini AI Companion isn't just a chatbot. It's a suite of integrated systems that give the AI true digital agency.
+
+### 🎙️ Sensory Intelligence
+*The AI perceives your environment in real-time.*
+- **Real-Time Voice Transcription**: Issue complex commands via voice audio—transcribed and executed instantly.
+- **Structure Awareness**: The AI knows if you’re pillaging a **Bastion**, trading in a **Village**, or exploring an **Ancient City**.
+- **Environmental Synchronization**: Deep awareness of server time, weather, dimensions, and nearby entities.
+
+### 🧠 Cognitive Core
+*Advanced reasoning that solves complex problems.*
+- **Recursive Reasoning**: The AI can reprompt itself to chain multiple steps (e.g., `/locate` → `/tp` → `/give` resources for that biome).
+- **Self-Healing Logic**: If a command fails, the AI analyzes the error, updates its logic, and retries automatically (up to 10 stages).
+- **Multi-Model Support**: Switch between **Flash**, **Flash-Thinking**, and **Pro** models based on the complexity of your task.
+
+### 🛠️ Modpack Master
+*Universal compatibility for the modern player.*
+- **Recipe Mastery**: Instantly retrieve complex crafting and smelting paths for **any** item (Vanilla or Modded).
+- **Registry Scanner**: Automatically discovers items, blocks, and entity types from your entire modpack via RegistryHints.
+- **Undo Engine**: Every AI-driven world mutation can be reverted instantly if it doesn't meet your vision.
+
+### 📊 Pro Ecosystem
+*Information at your fingertips.*
+- **Real-Time Sidebar**: Track mode, state, token usage, and retries via a sleek in-game scoreboard.
+- **Death Historian**: Remembers your last 20 deaths to provide precise survival strategies.
+- **History Export**: Download your entire session as `.txt` or `.json` for a permanent record of your AI journey.
+
+---
+
+## 🚀 Getting Started
+
+### 1. Prerequisites
+- **Java 21** & **Fabric Loader** (1.21.1)
+- A **Google Gemini API Key** ([Get one here](https://aistudio.google.com/))
+
+### 2. Physical Installation
+1. Drop the `.jar` into your `mods` folder.
+2. Launch the game.
+
+### 3. Connection
+Connect your key securely using the in-game terminal:
+```bash
+/chatkey <your-api-key>
+```
+> [!TIP]
+> Use `/chatkey default <key>` to set a server-wide key for all players.
+
+---
+
+## 📟 Command Terminal
+
+| Command          | Description                                                        |
+| :--------------- | :----------------------------------------------------------------- |
+| `/chat <prompt>` | Start a conversation or world-management task.                     |
+| `/chat undo`     | **Rollback** the last set of AI-executed commands.                 |
+| `/chat smarter`  | Force the AI to re-evaluate the last prompt using a **Pro** model. |
+| `/chat clear`    | Wipe current session history for a fresh start.                    |
+| `/chat history`  | Browse previous exchanges in an interactive menu.                  |
+| `/chat config`   | Deep-dive into debug mode, sidebar toggles, and retry limits.      |
+
+---
+
+## 🛠️ The Nerd Stack
+
+The Gemini AI Companion is built on an asynchronous, multi-threaded architecture designed for safety and speed.
+
 <details>
-<summary>📸 <b>Click to View Screenshots</b></summary>
-<br>
-<img src="readme_resources/thinking.png" width="750">
-<br>
-<i>▲ The rainbow "Thinking..." animation in action while AI processes your request</i>
-</details>
-</p>
-
-<h2 align="center">✨ Features</h2>
-
-<table align="center">
-<tr>
-<td align="center" width="25%">🗣️<br><b>Natural Language</b><br>Human-like interaction</td>
-<td align="center" width="25%">🧠<br><b>Recursive Reasoning</b><br>Self-reprompting chains</td>
-<td align="center" width="25%">🎙️<br><b>Voice Control</b><br>Real-time transcription</td>
-<td align="center" width="25%">🍳<br><b>Recipe Mastery</b><br>Crafting & Smelting</td>
-</tr>
-<tr>
-<td align="center" width="25%">🌐<br><b>Web Search</b><br>Google Search Grounding</td>
-<td align="center" width="25%">↩️<br><b>Undo Engine</b><br>Revert AI mutations</td>
-<td align="center" width="25%">💾<br><b>History</b><br>JSON/TXT Export support</td>
-<td align="center" width="25%">🔄<br><b>Self-Healing</b><br>10-step auto-retry</td>
-</tr>
-</table>
-
-<br>
-
-<h2 align="center">🧠 Smart Context Awareness</h2>
-
-<p align="center">The AI doesn't just "chat" — it perceives your world in real-time.</p>
-
-<table align="center">
-<tr>
-<td align="center" width="33%">🏰<br><b>Structure Detection</b><br>AI knows if you're in a Village, Stronghold, or Ancient City.</td>
-<td align="center" width="33%">🍳<br><b>Recipe Fetching</b><br>Retrieves crafting & smelting paths for <b>any</b> item.</td>
-<td align="center" width="33%">🎙️<br><b>Real-Time Voice</b><br>Transcribes audio clips into complex commands instantly.</td>
-</tr>
-<tr>
-<td align="center" width="33%">⛅<br><b>Environmental Sync</b><br>Aware of time, weather, and dimension without being asked.</td>
-<td align="center" width="33%">🔄<br><b>Recursive Chaining</b><br>AI reprompts itself to complete multi-step tasks (e.g. Locate -> Teleport).</td>
-<td align="center" width="33%">🔍<br><b>Registry Access</b><br>Deep scans of all modded items, blocks, and entity types.</td>
-</tr>
-</table>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" />
-</p>
-
-<h2 align="center">🚀 Getting Started</h2>
-
-### 🛠️ Prerequisites
-*   **Minecraft:** 1.21.1
-*   **Loader:** Fabric 0.16.0+
-*   **API:** [Gemini API Key](https://aistudio.google.com/apikey) (Free Tier supported)
-
-### 📥 Installation
-1.  Drop the jar into your `mods` folder.
-2.  Set your key via `/chatkey <YOUR_KEY>`.
-3.  Type `/chat` to begin the future.
-
-<br>
-
-<h2 align="center">💬 Core Commands</h2>
-
-| Command             | Why use it?                                             |
-| :------------------ | :------------------------------------------------------ |
-| `/chat <msg>`       | The main gateway to the AI.                             |
-| `/chat undo`        | Safety net for when AI goes "too far".                  |
-| `/chat smarter`     | Escalates logic to the **Pro** model for complex tasks. |
-| `/chat skill <...>` | Injects world context (inventory, entities, stats).     |
-
-<h2 align="center">📦 Modpack & Cross-Mod Integration</h2>
-
-<p align="center">
-  Built for complexity. Gemini doesn't just know Vanilla — it scans your entire game state.
-</p>
-
-<table align="center">
-<tr>
-<td align="center" width="50%">🔍<br><b>Registry Scanning</b><br>AI automatically discovers items, blocks, and entities from <b>any mod</b> in your pack via <i>RegistryHints</i>.</td>
-<td align="center" width="50%">🛠️<br><b>Modpack Addon</b><br>Perfect for quest-heavy packs. AI can explain <i>any</i> modded item or suggest recipes for complex machines.</td>
-</tr>
-</table>
-
-<h2 align="center">🛣️ Project Roadmap</h2>
-
-- [x] **Core Integration:** Async Gemini 3 API Connection
-- [x] **Self-Healing:** Recursive error correction loop
-- [x] **Context Awareness:** Inventory & Entity skill injection
-- [ ] **Vision Support:** Image analysis for world snapshots (Planned)
-- [ ] **Voice Control:** Dictation-based command execution (Backlog)
-
-<br>
-
-<h2 align="center">📚 Technical Report: Architecture & Implementation</h2>
-
-This section documents the engineering techniques that enable seamless AI-to-game collaboration.
-
-### System Architecture
+<summary><b>📐 System Architecture</b> (Mermaid Diagram)</summary>
 
 ```mermaid
 graph TB
@@ -163,26 +120,18 @@ graph TB
         J -->|ASK| K[Display Answer]
         J -->|PLAN| L[Display Strategy]
         J -->|COMMAND| M[Command Executor]
-        M --> N{Validation}
-        N -->|Success| O[Apply to World]
-        N -->|Failure| P[Retry Loop]
+        M --> n{Validation}
+        n -->|Success| O[Apply to World]
+        n -->|Failure| P[Retry Loop]
         P --> H
         O --> R1{Reprompt Needed?}
         R1 -->|Yes| E
     end
-    
-    subgraph Persistence Layer
-        Q[(PlayerState Map)]
-        R[(Chat History)]
-        S[(Undo Stack)]
-    end
-    
-    E -.-> Q
-    E -.-> R
-    M -.-> S
 ```
+</details>
 
-### Request Lifecycle
+<details>
+<summary><b>🔄 Request Lifecycle</b> (Sequence Diagram)</summary>
 
 ```mermaid
 sequenceDiagram
@@ -213,103 +162,56 @@ sequenceDiagram
     M->>W: execute /tp 100 64 -200
     M->>P: "Found it! Teleporting you now."
 ```
+</details>
 
-### Self-Healing Command Retry
-
-The mod implements an intelligent retry mechanism that feeds command errors back to Gemini:
-
-```mermaid
-flowchart LR
-    A[Generate Command] --> B[Execute]
-    B --> C{Result}
-    C -->|Success| D[Done ✓]
-    C -->|Failure| E{Retries < 10?}
-    E -->|Yes| F[Append Error to Context]
-    F --> G[Request New Command]
-    G --> B
-    E -->|No| H[Report Failure]
-    
-    style D fill:#4ade80
-    style H fill:#f87171
-```
-
-**Example Retry Flow:**
-1. AI generates: `/give @p diamond_sword{Enchantments:[{id:sharpness,lvl:5}]}`
-2. Server rejects: "Unknown argument: Enchantments" (1.21.1 uses components)
-3. Error fed back to Gemini with context
-4. AI corrects: `/give @p diamond_sword[enchantments={levels:{sharpness:5}}]`
-5. Command succeeds
-
-### Context Window Management
-
-```mermaid
-pie title Token Budget Allocation
-    "System Prompt" : 2000
-    "Player Context" : 500
-    "Chat History" : 3500
-    "Current Request" : 1000
-    "Reserved for Response" : 1000
-```
-
-| Component           | Strategy                                             |
-| ------------------- | ---------------------------------------------------- |
-| **System Prompt**   | Static instructions for Minecraft command generation |
-| **Player Context**  | Dynamically injected: RegistryHints, Recipes, Stats  |
-| **Chat History**    | Rolling window of last 10 exchanges, FIFO eviction   |
-| **Response Buffer** | Reserved tokens to prevent truncation                |
-
-### Thread Safety Model
+<details>
+<summary><b>↩️ Undo System Architecture</b></summary>
 
 ```mermaid
 graph LR
-    subgraph Main Thread
-        A[Tick Events]
-        B[Command Registration]
-        B1[Registry & Recipe Lookups]
-        C[World Mutations]
+    subgraph Transaction
+        A[AI Commands] --> B[State Snapshot]
+        B --> C[Execution]
     end
-    
-    subgraph Worker Threads
-        D[HTTP Requests]
-        E[JSON Parsing]
-        F[Response Processing]
-    end
-    
-    subgraph Thread-Safe Storage
-        G[(ConcurrentHashMap<br>PlayerState)]
-        H[(ConcurrentHashMap<br>ChatHistory)]
-    end
-    
-    D --> G
-    F --> H
-    C -.->|server.execute| A
+    C --> D{User Satisfied?}
+    D -->|No| E[Invoke /chat undo]
+    E --> F[Restore Snapshot]
+    F --> G[World Reverted]
 ```
+</details>
 
-### Undo System Architecture
+<details>
+<summary><b>🛡️ Self-Healing Retry Loop</b></summary>
 
-```mermaid
-stateDiagram-v2
-    [*] --> Idle
-    Idle --> Executing: /chat command
-    Executing --> Recording: Command succeeds
-    Recording --> Idle: Push to undo stack
-    Idle --> Reverting: /chat undo
-    Reverting --> Idle: Execute inverse commands
-    
-    note right of Recording
-        Captures:
-        - Entity spawns → /kill
-        - Item gives → /clear
-        - Effects → /effect clear
-    end note
-```
+The AI uses a recursive validation loop to ensure commands actually work in your specific world state.
+
+| Stage              | Action          | Logic                                                            |
+| :----------------- | :-------------- | :--------------------------------------------------------------- |
+| **1. Parse**       | JSON Validation | Ensures the AI returned a valid command array.                   |
+| **2. Dry-Run**     | Syntax Check    | Validates command strings against the Brigadier dispatcher.      |
+| **3. Execution**   | World Apply     | Attempts to run the command on the server thread.                |
+| **4. Feedback**    | Error Capture   | If it fails, the *exact* Minecraft error is sent back to Gemini. |
+| **5. Recalibrate** | Self-Correction | AI re-writes the command to fix the reported syntax/logic error. |
+| **6. Repeat**      | Recurse         | The loop continues until success or the 10-retry safety limit.   |
+
+</details>
+
+<details>
+<summary><b>🛡️ Thread Safety & Data Flow</b></summary>
+
+The mod maintains strict separation between the **Netty Work Pool** (Networking) and the **Main Server Thread** (World Ticking). All AI responses are sanitized and validated against Minecraft's Brigadier system before execution.
+
+- **Main Thread**: World Mutation, Registry Access, Recipe Lookups.
+- **Async Workers**: API calls, JSON Parsing, Transcript Cleaning.
+- **Netty**: Packet handling (C2S/S2C).
+</details>
 
 ---
 
 <div align="center">
 
-**Made with ❤️ for the Minecraft community**
+### *Elevate your Minecraft experience today.*
 
-[⬆ Back to Top](#-gemini-ai-companion)
+[**Download for Fabric**](https://fabricmc.net/) | [**Join the Discord**](https://example.com) | [**Report a Bug**](https://github.com/user/repo/issues)
 
 </div>
