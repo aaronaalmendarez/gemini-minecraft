@@ -89,6 +89,19 @@ Connect your key securely using the in-game terminal:
 
 ---
 
+## 🎙️ Voice Control
+
+Gemini AI Companion features a built-in **Push-to-Talk** system for true hands-free interaction.
+
+1. **Press & Hold `V`**: The high-end recording overlay will appear at the top of your screen.
+2. **Speak Naturally**: "Build me a small oak house" or "Where is the nearest village?"
+3. **Release to Execute**: The mod will instantly transcribe your audio and pass it to the Cognitive Core for processing.
+
+> [!NOTE]
+> You can rebind the Push-to-Talk key in the standard Minecraft Controls menu.
+
+---
+
 ## 📟 Command Terminal
 
 | Command          | Description                                                        |
