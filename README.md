@@ -1,222 +1,101 @@
-<div align="center">
-
-![Gemini AI Companion](banner.png)
-
-# 🤖 Gemini AI Companion
-
-### Talk to Minecraft. AI Understands.
-
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62B47A?style=for-the-badge&logo=minecraft&logoColor=white)](https://minecraft.net)
-[![Fabric](https://img.shields.io/badge/Fabric-Mod-DFD4BC?style=for-the-badge)](https://fabricmc.net)
-[![Gemini](https://img.shields.io/badge/Powered%20by-Gemini%203-8E75B2?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev)
-[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
-
-**The most powerful AI mod for Minecraft. Ask questions, execute commands, and control your game using natural language.**
-
-[Getting Started](#-getting-started) •
-[Features](#-features) •
-[Commands](#-commands) •
-[Configuration](#%EF%B8%8F-configuration)
-
-</div>
-
----
-
-## 🎬 See It In Action
-
-<div align="center">
-
-![Demo](merged_output_5mb.gif)
-
-*Ask anything, execute anything — powered by Gemini 3*
-
-</div>
-
-<details>
-<summary>📸 <strong>Screenshots</strong></summary>
-
-<div align="center">
-
-|         AI Thinking          |
-| :--------------------------: |
-| ![Thinking](Thinking....png) |
-
-</div>
-
-</details>
-
----
-
-## ✨ Features
-
-| Feature                         | Description                                                                         |
-| ------------------------------- | ----------------------------------------------------------------------------------- |
-| 🗣️ **Natural Language Commands** | Say "give me a diamond sword with sharpness 5" instead of memorizing command syntax |
-| 🧠 **Three AI Modes**            | ASK (questions), PLAN (strategies), COMMAND (execute actions)                       |
-| 🔄 **Self-Healing Commands**     | AI automatically fixes and retries failed commands up to 10 times                   |
-| 🌐 **Web Search**                | AI can search the web for Minecraft info using Google Grounding                     |
-| ↩️ **Undo Support**              | Made a mistake? `/chat undo` reverses the last AI actions                           |
-| 💾 **Chat History**              | Export conversations to TXT or JSON                                                 |
-| ⚙️ **In-Game Config GUI**        | Press `G` to open settings (keybind configurable)                                   |
-| 🎨 **Visual Feedback**           | Rainbow thinking animation, particles, and sound effects                            |
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Minecraft 1.21.1
-- [Fabric Loader](https://fabricmc.net/use/installer/) 0.16.0+
-- [Fabric API](https://modrinth.com/mod/fabric-api)
-- [Gemini API Key](https://aistudio.google.com/apikey) (free)
-
-### Installation
-
-1. Download the latest release from [Releases](../../releases)
-2. Place the `.jar` in your `mods` folder
-3. Launch Minecraft with Fabric
-4. Set your API key:
-   ```
-   /chatkey YOUR_API_KEY_HERE
-   ```
-5. Start chatting:
-   ```
-   /chat give me a diamond pickaxe with efficiency 5
-   ```
-
----
-
-## 💬 Commands
-
-### Core Commands
-
-| Command           | Description                           |
-| ----------------- | ------------------------------------- |
-| `/chat <message>` | Send a message to the AI              |
-| `/chat clear`     | Clear conversation history            |
-| `/chat cancel`    | Cancel the current AI request         |
-| `/chat undo`      | Undo the last AI-executed commands    |
-| `/chat smarter`   | Re-run last prompt with the Pro model |
-
-### History & Export
-
-| Command                 | Description                     |
-| ----------------------- | ------------------------------- |
-| `/chat history`         | Show recent conversations       |
-| `/chat history all`     | Show full history               |
-| `/chat export 10 txt`   | Export last 10 exchanges to TXT |
-| `/chat export all json` | Export full history to JSON     |
-
-### Context Commands
-
-| Command                    | Description                               |
-| -------------------------- | ----------------------------------------- |
-| `/chat skill inventory`    | Include your inventory in AI context      |
-| `/chat skill nearby`       | Include nearby entities in context        |
-| `/chat skill stats`        | Include player stats (health, hunger, XP) |
-| `/chat skill nbt mainhand` | Include NBT data of held item             |
-
----
-
-## ⚙️ Configuration
-
-### In-Game GUI
-Press **`G`** to open the config screen (keybind configurable in Controls).
-
-### Command-Based Config
-
-```bash
-/chat config                    # Show all settings
-/chat config model flash        # Set AI model (flash/flash-thinking/pro/auto)
-/chat config retries 5          # Set command retry limit (0-10)
-/chat config sidebar on         # Toggle sidebar stats
-/chat config sounds off         # Toggle sound effects
-/chat config particles minimal  # Set particle level (on/minimal/off)
-/chat config debug on           # Show executed commands
-```
-
-### API Key Management
-
-| Command                  | Description                   |
-| ------------------------ | ----------------------------- |
-| `/chatkey <key>`         | Set your personal API key     |
-| `/chatkey clear`         | Remove your API key           |
-| `/chatkey default <key>` | Set server-wide default key   |
-| `/chatkey info`          | Show key configuration status |
-
-You can also set the `GEMINI_API_KEY` environment variable.
-
----
-
-## 🎯 AI Models
-
-| Model              | Best For                                  | Speed      |
-| ------------------ | ----------------------------------------- | ---------- |
-| **Flash**          | Quick commands, simple questions          | ⚡ Fastest  |
-| **Flash Thinking** | Complex reasoning, multi-step tasks       | ⚡ Fast     |
-| **Pro**            | Difficult problems, detailed explanations | 🐢 Slower   |
-| **Auto**           | Automatically selects based on task       | ⚡ Adaptive |
-
----
-
-## 📝 Examples
-
-```bash
-# Items & Equipment
-/chat give me full netherite armor with protection 4
-/chat give me a bow with infinity and power 5
-
-# World Interaction
-/chat teleport me to the nearest village
-/chat what biome am I in?
-/chat make it stop raining
-
-# Combat & Entities
-/chat kill all zombies within 50 blocks
-/chat spawn 5 wolves and tame them
-
-# Complex Commands
-/chat create a 10x10 glass dome around me
-/chat give all players speed 2 for 5 minutes
-
-# Questions
-/chat how do I find diamonds in 1.21?
-/chat what does a smithing template do?
-```
-
----
-
-## 🔧 Technical Details
-
-- **Minecraft Version:** 1.21.1
-- **Mod Loader:** Fabric
-- **API:** Google Gemini (gemini-3.0-flash, gemini-3.0-pro)
-- **Commands:** Execute at OP level 4
-- **Data Storage:** `run/ai-keys/` (API keys), `run/chat-logs/` (exports)
-
----
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-<div align="center">
-
-**Made with ❤️ for the Minecraft community**
-
-[⬆ Back to Top](#-gemini-ai-companion)
-
-</div>
-
----
-
-# 📚 Technical Report: Architecture & Implementation
+<p align="center">
+  <img src="banner.png" width="800" />
+</p>
+
+<h1 align="center">🌌 Gemini AI Companion</h1>
+<p align="center"><i>A next-generation AI orchestration layer for Minecraft, powered by Google Gemini 3.</i></p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Minecraft-1.21.1-62B47A?style=for-the-badge&logo=minecraft&logoColor=white">
+  <img src="https://img.shields.io/badge/Fabric-Mod-DFD4BC?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Powered%20by-Gemini%203-8E75B2?style=for-the-badge&logo=google&logoColor=white">
+  <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge">
+</p>
+
+<p align="center">
+  <a href="#-getting-started">Getting Started</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-commands">Commands</a> •
+  <a href="#-technical-report-architecture--implementation">How it Works</a>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" />
+</p>
+
+<h2 align="center">🎬 See It In Action</h2>
+
+<p align="center">
+  <img src="merged_output_5mb.gif" width="750">
+  <br>
+  <i>▲ Real-time command execution and natural language reasoning</i>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" />
+</p>
+
+<h2 align="center">✨ Features</h2>
+
+<table align="center">
+<tr>
+<td align="center" width="33%">🗣️<br><b>Natural Language</b><br>Human-like interaction</td>
+<td align="center" width="33%">🧠<br><b>Multi-Mode AI</b><br>Ask, Plan, or Command</td>
+<td align="center" width="33%">🔄<br><b>Self-Healing</b><br>10-step auto-retry</td>
+</tr>
+<tr>
+<td align="center" width="33%">🌐<br><b>Web Search</b><br>Google Search Grounding</td>
+<td align="center" width="33%">↩️<br><b>Undo Engine</b><br>Revert AI mutations</td>
+<td align="center" width="33%">💾<br><b>History</b><br>JSON/TXT Export support</td>
+</tr>
+</table>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" />
+</p>
+
+<h2 align="center">🚀 Getting Started</h2>
+
+### 🛠️ Prerequisites
+*   **Minecraft:** 1.21.1
+*   **Loader:** Fabric 0.16.0+
+*   **API:** [Gemini API Key](https://aistudio.google.com/apikey) (Free Tier supported)
+
+### 📥 Installation
+1.  Drop the jar into your `mods` folder.
+2.  Set your key via `/chatkey <YOUR_KEY>`.
+3.  Type `/chat` to begin the future.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" />
+</p>
+
+<h2 align="center">💬 Core Commands</h2>
+
+| Command             | Why use it?                                             |
+| :------------------ | :------------------------------------------------------ |
+| `/chat <msg>`       | The main gateway to the AI.                             |
+| `/chat undo`        | Safety net for when AI goes "too far".                  |
+| `/chat smarter`     | Escalates logic to the **Pro** model for complex tasks. |
+| `/chat skill <...>` | Injects world context (inventory, entities, stats).     |
+
+<h2 align="center">🛣️ Project Roadmap</h2>
+
+- [x] **Core Integration:** Async Gemini 3 API Connection
+- [x] **Self-Healing:** Recursive error correction loop
+- [x] **Context Awareness:** Inventory & Entity skill injection
+- [ ] **Vision Support:** Image analysis for world snapshots (Planned)
+- [ ] **Voice Control:** Dictation-based command execution (Backlog)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" />
+</p>
+
+<h2 align="center">📚 Technical Report: Architecture & Implementation</h2>
 
 This section documents the engineering techniques that enable seamless AI-to-game collaboration.
 
-## System Architecture
+### System Architecture
 
 ```mermaid
 graph TB
@@ -255,7 +134,7 @@ graph TB
     L -.-> R
 ```
 
-## Request Lifecycle
+### Request Lifecycle
 
 ```mermaid
 sequenceDiagram
@@ -287,7 +166,7 @@ sequenceDiagram
     M->>P: Display result + update sidebar
 ```
 
-## Self-Healing Command Retry
+### Self-Healing Command Retry
 
 The mod implements an intelligent retry mechanism that feeds command errors back to Gemini:
 
@@ -313,7 +192,7 @@ flowchart LR
 4. AI corrects: `/give @p diamond_sword[enchantments={levels:{sharpness:5}}]`
 5. Command succeeds
 
-## Context Window Management
+### Context Window Management
 
 ```mermaid
 pie title Token Budget Allocation
@@ -331,7 +210,7 @@ pie title Token Budget Allocation
 | **Chat History**    | Rolling window of last 10 exchanges, FIFO eviction   |
 | **Response Buffer** | Reserved tokens to prevent truncation                |
 
-## Thread Safety Model
+### Thread Safety Model
 
 ```mermaid
 graph LR
@@ -357,13 +236,7 @@ graph LR
     C -.->|server.execute| A
 ```
 
-**Key Techniques:**
-- `ConcurrentHashMap` for all player-specific state
-- `server.execute()` to marshal world mutations back to main thread
-- `CompletableFuture` for non-blocking API calls
-- Atomic operations for sidebar updates
-
-## Undo System Architecture
+### Undo System Architecture
 
 ```mermaid
 stateDiagram-v2
@@ -382,26 +255,12 @@ stateDiagram-v2
     end note
 ```
 
-## Data Flow Summary
-
-| Layer             | Technology               | Purpose                      |
-| ----------------- | ------------------------ | ---------------------------- |
-| **Input**         | Brigadier Commands       | Type-safe command parsing    |
-| **Network**       | java.net.http.HttpClient | Async HTTP/2 to Gemini       |
-| **Serialization** | Gson                     | JSON encoding/decoding       |
-| **State**         | ConcurrentHashMap        | Thread-safe player data      |
-| **Execution**     | CommandManager           | Server-side command dispatch |
-| **Feedback**      | Scoreboard API           | Real-time sidebar stats      |
-
-## Performance Characteristics
-
-| Metric              | Typical Value                 |
-| ------------------- | ----------------------------- |
-| API Latency         | 200-800ms (Flash), 1-3s (Pro) |
-| Memory per Player   | ~50KB (history + state)       |
-| Retry Overhead      | +200ms per attempt            |
-| Sidebar Update Rate | Every 20 ticks (1 second)     |
-
 ---
 
-> **Note:** This architecture prioritizes responsiveness and reliability. The async design ensures the game never freezes during API calls, while the retry system handles the inherent unpredictability of LLM outputs.
+<div align="center">
+
+**Made with ❤️ for the Minecraft community**
+
+[⬆ Back to Top](#-gemini-ai-companion)
+
+</div>
