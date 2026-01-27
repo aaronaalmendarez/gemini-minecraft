@@ -46,6 +46,10 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.command.CommandSource;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.recipe.RecipeEntry;
+import net.minecraft.recipe.RecipeManager;
+import net.minecraft.recipe.RecipeType;
+import net.minecraft.recipe.Recipe;
 import net.minecraft.world.gen.StructureAccessor;
 import net.minecraft.world.gen.structure.Structure;
 import net.minecraft.util.Identifier;
@@ -203,6 +207,18 @@ public static final String MOD_ID = "gemini-ai-companion";
 						.executes(context -> runChatSkill(context.getSource(), "nearby", null)))
 					.then(CommandManager.literal("stats")
 						.executes(context -> runChatSkill(context.getSource(), "stats", null)))
+					.then(CommandManager.literal("recipe")
+						.then(CommandManager.argument("item", StringArgumentType.word())
+							.executes(context -> runChatSkill(
+								context.getSource(),
+								"recipe",
+								StringArgumentType.getString(context, "item")))))
+					.then(CommandManager.literal("smelt")
+						.then(CommandManager.argument("item", StringArgumentType.word())
+							.executes(context -> runChatSkill(
+								context.getSource(),
+								"smelt",
+								StringArgumentType.getString(context, "item")))))
 					.then(CommandManager.literal("nbt")
 						.executes(context -> runChatSkill(context.getSource(), "nbt", null))
 						.then(CommandManager.argument("target", StringArgumentType.word())
@@ -1380,6 +1396,10 @@ public static final String MOD_ID = "gemini-ai-companion";
 				yield prefix + (nearby.isEmpty() ? "Nearby entities: none" : "Nearby entities: " + nearby);
 			}
 			case "stats" -> prefix + buildPlayerStatsContext(player);
+			case "recipe", "smelt" -> {
+				String target = parts.length >= 4 ? parts[3].toLowerCase(Locale.ROOT) : "";
+				yield prefix + buildRecipeSkillOutput(player, target, skill.equals("smelt"));
+			}
 			case "nbt" -> {
 				String target = parts.length >= 4 ? parts[3].toLowerCase(Locale.ROOT) : "mainhand";
 				ItemStack stack = resolveNbtTarget(player, parts, target);
@@ -1470,6 +1490,70 @@ public static final String MOD_ID = "gemini-ai-companion";
 
 	private static String formatStat(float value) {
 		return String.format(Locale.ROOT, "%.1f", value);
+	}
+
+	private static String buildRecipeSkillOutput(ServerPlayerEntity player, String itemToken, boolean smeltOnly) {
+		if (player == null) {
+			return "Recipe: unknown";
+		}
+		if (itemToken == null || itemToken.isBlank()) {
+			return "Recipe error: missing item";
+		}
+		ItemStack outputStack = resolveItemStack(itemToken);
+		if (outputStack == null || outputStack.isEmpty()) {
+			List<String> suggestions = findRegistryMatches(Registries.ITEM.getIds(), List.of(itemToken), 5);
+			return suggestions.isEmpty()
+				? "Recipe error: unknown item " + itemToken
+				: "Recipe error: unknown item " + itemToken + ". Suggestions: " + String.join(", ", suggestions);
+		}
+
+		RecipeManager manager = player.getServerWorld().getRecipeManager();
+		List<String> results = new ArrayList<>();
+		if (!smeltOnly) {
+			collectRecipesForType(manager, outputStack, RecipeType.CRAFTING, "crafting", results);
+			collectRecipesForType(manager, outputStack, RecipeType.STONECUTTING, "stonecutting", results);
+			collectRecipesForType(manager, outputStack, RecipeType.SMITHING, "smithing", results);
+		}
+		collectRecipesForType(manager, outputStack, RecipeType.SMELTING, "smelting", results);
+		collectRecipesForType(manager, outputStack, RecipeType.BLASTING, "blasting", results);
+		collectRecipesForType(manager, outputStack, RecipeType.SMOKING, "smoking", results);
+		collectRecipesForType(manager, outputStack, RecipeType.CAMPFIRE_COOKING, "campfire", results);
+
+		if (results.isEmpty()) {
+			return "Recipes for " + itemToken + ": none found";
+		}
+		return "Recipes for " + itemToken + ": " + String.join(" | ", results);
+	}
+
+	private static void collectRecipesForType(RecipeManager manager, ItemStack outputStack, RecipeType<?> type, String label, List<String> results) {
+		try {
+			List<RecipeEntry<?>> entries = manager.listAllOfType(type);
+			for (RecipeEntry<?> entry : entries) {
+				Recipe<?> recipe = entry.value();
+				ItemStack result = recipe.getResult(manager.getRegistryManager());
+				if (result == null || result.isEmpty()) {
+					continue;
+				}
+				if (result.getItem() == outputStack.getItem()) {
+					results.add(label + ":" + entry.id().toString());
+					if (results.size() >= 8) {
+						return;
+					}
+				}
+			}
+		} catch (Exception e) {
+			// ignore recipe type if unavailable
+		}
+	}
+
+	private static ItemStack resolveItemStack(String token) {
+		String normalized = token.toLowerCase(Locale.ROOT);
+		String idText = normalized.contains(":") ? normalized : "minecraft:" + normalized;
+		Identifier id = Identifier.tryParse(idText);
+		if (id == null || !Registries.ITEM.containsId(id)) {
+			return ItemStack.EMPTY;
+		}
+		return new ItemStack(Registries.ITEM.get(id));
 	}
 
 	private static int undoLastCommands(ServerCommandSource source) {
