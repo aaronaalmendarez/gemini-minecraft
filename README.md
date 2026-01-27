@@ -32,6 +32,16 @@
 </p>
 
 <p align="center">
+<details>
+<summary>📸 <b>Click to View Screenshots</b></summary>
+<br>
+<img src="Thinking....png" width="750">
+<br>
+<i>▲ The rainbow "Thinking..." animation in action while AI processes your request</i>
+</details>
+</p>
+
+<p align="center">
   <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" />
 </p>
 
