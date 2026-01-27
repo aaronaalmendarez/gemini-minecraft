@@ -73,7 +73,16 @@ Stop thinking of it as a "chatbot." Start thinking of it as your **Second Pilot*
 #### 🛠️ Scenario D: Modpack Mastery
 > **You:** "How do I make a Digital Miner from Mekanism?"
 >
-> **Gemini:** *Scans RegistryHints* → Identifies the item → Scans Recipe Scrapers → Provides a full step-by-step breakdown of ingredients, including sub-components like Atomic Alloys.
+> > [!IMPORTANT]
+> > **CRYSTAL-SCAN IN PROGRESS...**
+> > ```text
+> > [Registry] Found: mekanism:digital_miner
+> > [Logic] Deep-scanning RecipeHints...
+> > [Mapping] 12 recursive sub-components identified.
+> > ```
+> > **Gemini:** "To build the Digital Miner, you'll need a **Robit**, **2 Atomic Alloys**, and a **Teleportation Core**. Since you're missing the Alloys, I've calculated the raw Obsidian and Diamond dust required to smelt them now."
+
+---
 
 ---
 
