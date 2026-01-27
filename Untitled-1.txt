@@ -1,0 +1,1058 @@
+- [skip to content](https://wiki.fabricmc.net/tutorial:setup#dokuwiki__content)
+[skip to content](https://wiki.fabricmc.net/tutorial:setup#dokuwiki__content)
+
+# [Fabric Wiki](https://wiki.fabricmc.net/start)
+
+[Fabric Wiki](https://wiki.fabricmc.net/start)
+
+### User Tools
+- [Register](https://wiki.fabricmc.net/tutorial:setup?do=register)
+- [Log In](https://wiki.fabricmc.net/tutorial:setup?do=login&sectok=)
+[Register](https://wiki.fabricmc.net/tutorial:setup?do=register)
+[Log In](https://wiki.fabricmc.net/tutorial:setup?do=login&sectok=)
+
+### Site Tools
+- [Recent Changes](https://wiki.fabricmc.net/tutorial:setup?do=recent)
+- [Sitemap](https://wiki.fabricmc.net/tutorial:setup?do=index)
+[Recent Changes](https://wiki.fabricmc.net/tutorial:setup?do=recent)
+[Sitemap](https://wiki.fabricmc.net/tutorial:setup?do=index)
+[Setting up a mod development environment](https://wiki.fabricmc.net/tutorial:setup)
+
+### Sidebar
+[← Go back to the homepage](https://wiki.fabricmc.net/start)
+
+## Fabric Tutorials
+
+-  [Information On Tutorials](https://wiki.fabricmc.net/tutorial:start)
+
+[Information On Tutorials](https://wiki.fabricmc.net/tutorial:start)
+
+### Basics
+
+-  [Introduction to Fabric and Modding](https://docs.fabricmc.net/develop/) ([older version](https://wiki.fabricmc.net/tutorial:introduction))
+
+-  [Setting up a Development Environment](https://docs.fabricmc.net/develop/getting-started/setting-up) ([older version](https://wiki.fabricmc.net/tutorial:setup))
+
+-  [Reading the Minecraft source](https://wiki.fabricmc.net/tutorial:reading_mc_code)
+
+-  [Modding with Fabric with Kotlin](https://wiki.fabricmc.net/tutorial:kotlin)
+
+-  [Basic Conventions and Terminology](https://wiki.fabricmc.net/tutorial:terms)
+
+-  [Server and Client Side](https://wiki.fabricmc.net/tutorial:side)
+
+-  [Introduction to Registries](https://wiki.fabricmc.net/tutorial:registry)
+
+ [Standard Registries](https://wiki.fabricmc.net/tutorial:registry_types)
+
+
+
+-  [Standard Registries](https://wiki.fabricmc.net/tutorial:registry_types)
+
+-  [Applying Changes without Restarting Minecraft](https://wiki.fabricmc.net/tutorial:hotswapping)
+
+-  [Creating a language file](https://wiki.fabricmc.net/tutorial:lang)
+
+[Introduction to Fabric and Modding](https://docs.fabricmc.net/develop/)
+[older version](https://wiki.fabricmc.net/tutorial:introduction)
+[Setting up a Development Environment](https://docs.fabricmc.net/develop/getting-started/setting-up)
+[older version](https://wiki.fabricmc.net/tutorial:setup)
+[Reading the Minecraft source](https://wiki.fabricmc.net/tutorial:reading_mc_code)
+[Modding with Fabric with Kotlin](https://wiki.fabricmc.net/tutorial:kotlin)
+[Basic Conventions and Terminology](https://wiki.fabricmc.net/tutorial:terms)
+[Server and Client Side](https://wiki.fabricmc.net/tutorial:side)
+[Introduction to Registries](https://wiki.fabricmc.net/tutorial:registry)
+-  [Standard Registries](https://wiki.fabricmc.net/tutorial:registry_types)
+
+[Standard Registries](https://wiki.fabricmc.net/tutorial:registry_types)
+[Applying Changes without Restarting Minecraft](https://wiki.fabricmc.net/tutorial:hotswapping)
+[Creating a language file](https://wiki.fabricmc.net/tutorial:lang)
+
+### Items
+
+Creation of items, such as tools, armor and food. Alongside crafting recipes and enchantments.
+-  [Creating Your First Item](https://docs.fabricmc.net/develop/items/first-item)  ([older version](https://wiki.fabricmc.net/tutorial:items))
+
+ [Custom Item Tooltips](https://wiki.fabricmc.net/tutorial:tooltip)
+
+
+
+-  [Custom Item Tooltips](https://wiki.fabricmc.net/tutorial:tooltip)
+
+-  [Creating Item Groups/Creative Tabs](https://docs.fabricmc.net/develop/items/custom-item-groups) ([older version](https://wiki.fabricmc.net/tutorial:itemgroup))
+
+-  [Adding a Crafting Recipe](https://wiki.fabricmc.net/tutorial:recipes)
+
+-  [Custom Armor](https://docs.fabricmc.net/develop/items/custom-armor) ([older version](https://wiki.fabricmc.net/tutorial:armor))
+
+ [Adding an Armor Trim](https://wiki.fabricmc.net/tutorial:armor_trim)
+
+
+
+-  [Adding an Armor Trim](https://wiki.fabricmc.net/tutorial:armor_trim)
+
+-  [Custom Tools](https://docs.fabricmc.net/develop/items/custom-tools) [(older version)](https://wiki.fabricmc.net/tutorial:tools)
+
+-  [Adding a Shield](https://wiki.fabricmc.net/tutorial:shield) (1.21.5 and below)
+
+-  [Custom Enchantments](https://docs.fabricmc.net/develop/items/custom-enchantment-effects) ([older version](https://wiki.fabricmc.net/tutorial:enchantments))
+
+-  [Transparency and Tinting](https://docs.fabricmc.net/develop/items/item-appearance) ([older version](https://wiki.fabricmc.net/tutorial:colorprovider))
+
+-  [Adding Model Predicate Providers](https://wiki.fabricmc.net/tutorial:model_predicate_providers) (before 1.21.4)
+
+[Creating Your First Item](https://docs.fabricmc.net/develop/items/first-item)
+[older version](https://wiki.fabricmc.net/tutorial:items)
+-  [Custom Item Tooltips](https://wiki.fabricmc.net/tutorial:tooltip)
+
+[Custom Item Tooltips](https://wiki.fabricmc.net/tutorial:tooltip)
+[Creating Item Groups/Creative Tabs](https://docs.fabricmc.net/develop/items/custom-item-groups)
+[older version](https://wiki.fabricmc.net/tutorial:itemgroup)
+[Adding a Crafting Recipe](https://wiki.fabricmc.net/tutorial:recipes)
+[Custom Armor](https://docs.fabricmc.net/develop/items/custom-armor)
+[older version](https://wiki.fabricmc.net/tutorial:armor)
+-  [Adding an Armor Trim](https://wiki.fabricmc.net/tutorial:armor_trim)
+
+[Adding an Armor Trim](https://wiki.fabricmc.net/tutorial:armor_trim)
+[Custom Tools](https://docs.fabricmc.net/develop/items/custom-tools)
+[(older version)](https://wiki.fabricmc.net/tutorial:tools)
+[Adding a Shield](https://wiki.fabricmc.net/tutorial:shield)
+[Custom Enchantments](https://docs.fabricmc.net/develop/items/custom-enchantment-effects)
+[older version](https://wiki.fabricmc.net/tutorial:enchantments)
+[Transparency and Tinting](https://docs.fabricmc.net/develop/items/item-appearance)
+[older version](https://wiki.fabricmc.net/tutorial:colorprovider)
+[Adding Model Predicate Providers](https://wiki.fabricmc.net/tutorial:model_predicate_providers)
+
+### Blocks and Block Entities
+
+Creation of blocks, storage of items and data in blocks via block entities, and the creation of models and blockstates.
+-  [Creating Your First Block](https://docs.fabricmc.net/develop/blocks/first-block)
+
+-  [Block States](https://docs.fabricmc.net/develop/blocks/blockstates)
+
+ [Making a Directional Block](https://wiki.fabricmc.net/tutorial:directionalblock)
+
+ [Make the Block Waterloggable](https://wiki.fabricmc.net/tutorial:waterloggable)
+
+
+
+-  [Making a Directional Block](https://wiki.fabricmc.net/tutorial:directionalblock)
+
+-  [Make the Block Waterloggable](https://wiki.fabricmc.net/tutorial:waterloggable)
+
+-  [Adding a BlockEntity](https://docs.fabricmc.net/develop/blocks/block-entities) ([older version](https://wiki.fabricmc.net/tutorial:blockentity))
+
+ [Modify BlockEntity data](https://wiki.fabricmc.net/tutorial:blockentity_modify_data)
+
+ [Sync BlockEntity data with ItemStack](https://wiki.fabricmc.net/tutorial:blockentity_sync_itemstack)
+
+
+
+-  [Modify BlockEntity data](https://wiki.fabricmc.net/tutorial:blockentity_modify_data)
+
+-  [Sync BlockEntity data with ItemStack](https://wiki.fabricmc.net/tutorial:blockentity_sync_itemstack)
+
+-  [Storing Items in a Block as an Inventory](https://wiki.fabricmc.net/tutorial:inventory)
+
+-  [Transparency and Tinting](https://docs.fabricmc.net/develop/blocks/transparency-and-tinting) ([older version](https://wiki.fabricmc.net/tutorial:blockappearance))
+
+-  [Rendering Blocks and Items Dynamically](https://wiki.fabricmc.net/tutorial:dynamic_block_rendering)
+
+ [Rendering Blocks and Items Dynamically using a custom Model](https://wiki.fabricmc.net/tutorial:custom_model)
+
+ [Rendering Blocks and Items Dynamically using Block Entity Renderers](https://wiki.fabricmc.net/tutorial:blockentityrenderers)
+
+
+
+-  [Rendering Blocks and Items Dynamically using a custom Model](https://wiki.fabricmc.net/tutorial:custom_model)
+
+-  [Rendering Blocks and Items Dynamically using Block Entity Renderers](https://wiki.fabricmc.net/tutorial:blockentityrenderers)
+
+-  [Creating a Container Block](https://wiki.fabricmc.net/tutorial:screenhandler)
+
+ [Syncing Custom Data with Extended ScreenHandlers](https://wiki.fabricmc.net/tutorial:extendedscreenhandler)
+
+ [Syncing Integers with PropertyDelegates](https://wiki.fabricmc.net/tutorial:propertydelegates)
+
+
+
+-  [Syncing Custom Data with Extended ScreenHandlers](https://wiki.fabricmc.net/tutorial:extendedscreenhandler)
+
+-  [Syncing Integers with PropertyDelegates](https://wiki.fabricmc.net/tutorial:propertydelegates)
+
+-  [Adding a Custom Crop](https://wiki.fabricmc.net/tutorial:crops)
+
+[Creating Your First Block](https://docs.fabricmc.net/develop/blocks/first-block)
+[Block States](https://docs.fabricmc.net/develop/blocks/blockstates)
+-  [Making a Directional Block](https://wiki.fabricmc.net/tutorial:directionalblock)
+
+-  [Make the Block Waterloggable](https://wiki.fabricmc.net/tutorial:waterloggable)
+
+[Making a Directional Block](https://wiki.fabricmc.net/tutorial:directionalblock)
+[Make the Block Waterloggable](https://wiki.fabricmc.net/tutorial:waterloggable)
+[Adding a BlockEntity](https://docs.fabricmc.net/develop/blocks/block-entities)
+[older version](https://wiki.fabricmc.net/tutorial:blockentity)
+-  [Modify BlockEntity data](https://wiki.fabricmc.net/tutorial:blockentity_modify_data)
+
+-  [Sync BlockEntity data with ItemStack](https://wiki.fabricmc.net/tutorial:blockentity_sync_itemstack)
+
+[Modify BlockEntity data](https://wiki.fabricmc.net/tutorial:blockentity_modify_data)
+[Sync BlockEntity data with ItemStack](https://wiki.fabricmc.net/tutorial:blockentity_sync_itemstack)
+[Storing Items in a Block as an Inventory](https://wiki.fabricmc.net/tutorial:inventory)
+[Transparency and Tinting](https://docs.fabricmc.net/develop/blocks/transparency-and-tinting)
+[older version](https://wiki.fabricmc.net/tutorial:blockappearance)
+[Rendering Blocks and Items Dynamically](https://wiki.fabricmc.net/tutorial:dynamic_block_rendering)
+-  [Rendering Blocks and Items Dynamically using a custom Model](https://wiki.fabricmc.net/tutorial:custom_model)
+
+-  [Rendering Blocks and Items Dynamically using Block Entity Renderers](https://wiki.fabricmc.net/tutorial:blockentityrenderers)
+
+[Rendering Blocks and Items Dynamically using a custom Model](https://wiki.fabricmc.net/tutorial:custom_model)
+[Rendering Blocks and Items Dynamically using Block Entity Renderers](https://wiki.fabricmc.net/tutorial:blockentityrenderers)
+
+### Blocks and Block Entities
+[Creating a Container Block](https://wiki.fabricmc.net/tutorial:screenhandler)
+-  [Syncing Custom Data with Extended ScreenHandlers](https://wiki.fabricmc.net/tutorial:extendedscreenhandler)
+
+-  [Syncing Integers with PropertyDelegates](https://wiki.fabricmc.net/tutorial:propertydelegates)
+
+[Syncing Custom Data with Extended ScreenHandlers](https://wiki.fabricmc.net/tutorial:extendedscreenhandler)
+[Syncing Integers with PropertyDelegates](https://wiki.fabricmc.net/tutorial:propertydelegates)
+[Adding a Custom Crop](https://wiki.fabricmc.net/tutorial:crops)
+
+### Data Generation
+The [Fabric Data Generation API](https://github.com/FabricMC/fabric/tree/HEAD/fabric-data-generation-api-v1), which generates JSON files through data generators.
+-  [Getting started using Data Generation](https://docs.fabricmc.net/develop/data-generation/setup)
+
+-  [Advancements Generation](https://docs.fabricmc.net/develop/data-generation/advancements)
+
+-  [Loot Table Generation](https://docs.fabricmc.net/develop/data-generation/loot-tables)
+
+-  [Model Generation](https://wiki.fabricmc.net/tutorial:datagen_model)
+
+ [Bucket Texture Data Generation](https://wiki.fabricmc.net/tutorial:datagen_buckets)
+
+
+
+-  [Bucket Texture Data Generation](https://wiki.fabricmc.net/tutorial:datagen_buckets)
+
+-  [Tag Generation](https://docs.fabricmc.net/develop/data-generation/tags)
+
+-  [Recipe Generation](https://docs.fabricmc.net/develop/data-generation/recipes)
+
+-  [Language File Generation](https://docs.fabricmc.net/develop/data-generation/translations)
+
+[Getting started using Data Generation](https://docs.fabricmc.net/develop/data-generation/setup)
+[Advancements Generation](https://docs.fabricmc.net/develop/data-generation/advancements)
+[Loot Table Generation](https://docs.fabricmc.net/develop/data-generation/loot-tables)
+[Model Generation](https://wiki.fabricmc.net/tutorial:datagen_model)
+-  [Bucket Texture Data Generation](https://wiki.fabricmc.net/tutorial:datagen_buckets)
+
+[Bucket Texture Data Generation](https://wiki.fabricmc.net/tutorial:datagen_buckets)
+[Tag Generation](https://docs.fabricmc.net/develop/data-generation/tags)
+[Recipe Generation](https://docs.fabricmc.net/develop/data-generation/recipes)
+[Language File Generation](https://docs.fabricmc.net/develop/data-generation/translations)
+
+### World Generation
+-  [Dimension Concepts](https://wiki.fabricmc.net/tutorial:dimensionconcepts)
+
+-  [Generating Custom Ores](https://wiki.fabricmc.net/tutorial:ores)
+
+-  [Adding Features](https://wiki.fabricmc.net/tutorial:features)
+
+-  [Adding Trees (Advanced)](https://wiki.fabricmc.net/tutorial:trees)
+
+-  [Adding structures](https://minecraft.wiki/w/Tutorials/Custom_structures) (vanilla tutorial in Minecraft Wiki)
+
+-  [[Adding Biomes](https://wiki.fabricmc.net/tutorial:biomes_old)](https://minecraft.wiki/w/Biomes/JSON_format) (vanilla tutorial)
+
+ Adding Biomes (before 1.18)
+
+
+
+-  [Adding Biomes](https://wiki.fabricmc.net/tutorial:biomes_old) (before 1.18)
+
+-  [Custom Chunk Generators (DRAFT)](https://wiki.fabricmc.net/tutorial:chunkgenerator)
+
+-  [Adding World Presets](https://wiki.fabricmc.net/tutorial:world_presets)
+
+-  [Adding Dimensions](https://minecraft.wiki/w/Custom_dimension) (vanilla tutorial)
+
+ [Creating a Custom Portal](https://wiki.fabricmc.net/tutorial:custom_portals)
+
+
+
+-  [Creating a Custom Portal](https://wiki.fabricmc.net/tutorial:custom_portals)
+
+[Dimension Concepts](https://wiki.fabricmc.net/tutorial:dimensionconcepts)
+[Generating Custom Ores](https://wiki.fabricmc.net/tutorial:ores)
+[Adding Features](https://wiki.fabricmc.net/tutorial:features)
+[Adding Trees (Advanced)](https://wiki.fabricmc.net/tutorial:trees)
+[Adding structures](https://minecraft.wiki/w/Tutorials/Custom_structures)
+[Adding Biomes](https://minecraft.wiki/w/Biomes/JSON_format)
+-  [Adding Biomes](https://wiki.fabricmc.net/tutorial:biomes_old) (before 1.18)
+
+[Adding Biomes](https://wiki.fabricmc.net/tutorial:biomes_old)
+[Custom Chunk Generators (DRAFT)](https://wiki.fabricmc.net/tutorial:chunkgenerator)
+[Adding World Presets](https://wiki.fabricmc.net/tutorial:world_presets)
+[Adding Dimensions](https://minecraft.wiki/w/Custom_dimension)
+-  [Creating a Custom Portal](https://wiki.fabricmc.net/tutorial:custom_portals)
+
+[Creating a Custom Portal](https://wiki.fabricmc.net/tutorial:custom_portals)
+
+### Commands
+Using [Mojang's Brigadier library](https://github.com/Mojang/brigadier) to create commands with complex arguments and actions.
+-  [Creating Commands](https://docs.fabricmc.net/develop/commands/basics) ([older version](https://wiki.fabricmc.net/tutorial:commands))
+
+-  [Command Exceptions](https://wiki.fabricmc.net/tutorial:command_exceptions)
+
+-  [Command Suggestions](https://docs.fabricmc.net/develop/commands/suggestions) ([older version](https://wiki.fabricmc.net/tutorial:command_suggestions))
+
+-  [Command Redirects](https://wiki.fabricmc.net/tutorial:command_redirects)
+
+-  [Command Argument Types](https://docs.fabricmc.net/develop/commands/arguments) ([older version](https://wiki.fabricmc.net/tutorial:command_argument_types))
+
+-  [Command Examples](https://wiki.fabricmc.net/tutorial:command_examples)
+
+[Creating Commands](https://docs.fabricmc.net/develop/commands/basics)
+[older version](https://wiki.fabricmc.net/tutorial:commands)
+[Command Exceptions](https://wiki.fabricmc.net/tutorial:command_exceptions)
+[Command Suggestions](https://docs.fabricmc.net/develop/commands/suggestions)
+[older version](https://wiki.fabricmc.net/tutorial:command_suggestions)
+[Command Redirects](https://wiki.fabricmc.net/tutorial:command_redirects)
+[Command Argument Types](https://docs.fabricmc.net/develop/commands/arguments)
+[older version](https://wiki.fabricmc.net/tutorial:command_argument_types)
+[Command Examples](https://wiki.fabricmc.net/tutorial:command_examples)
+
+### Events
+Using the many events included in [Fabric API](https://github.com/FabricMC/fabric), and creating your own events for you or other mods to use.
+-  [Listening to Events](https://docs.fabricmc.net/develop/events) ([older version](https://wiki.fabricmc.net/tutorial:callbacks))
+
+-  [Creating Custom Events](https://docs.fabricmc.net/develop/events#custom-events) ([older version](https://wiki.fabricmc.net/tutorial:events))
+
+-  [Adding Items to Existing Loot Tables](https://wiki.fabricmc.net/tutorial:adding_to_loot_tables)
+
+-  [Event Index (DRAFT)](https://wiki.fabricmc.net/tutorial:event_index)
+
+[Listening to Events](https://docs.fabricmc.net/develop/events)
+[older version](https://wiki.fabricmc.net/tutorial:callbacks)
+[Creating Custom Events](https://docs.fabricmc.net/develop/events#custom-events)
+[older version](https://wiki.fabricmc.net/tutorial:events)
+[Adding Items to Existing Loot Tables](https://wiki.fabricmc.net/tutorial:adding_to_loot_tables)
+[Event Index (DRAFT)](https://wiki.fabricmc.net/tutorial:event_index)
+
+### Entities
+-  [Adding an Entity](https://wiki.fabricmc.net/tutorial:entity)
+
+-  [Adding a Custom Spawn Egg](https://wiki.fabricmc.net/tutorial:spawn_egg)
+
+-  [Creating a Custom Projectile](https://wiki.fabricmc.net/tutorial:projectiles)
+
+[Adding an Entity](https://wiki.fabricmc.net/tutorial:entity)
+[Adding a Custom Spawn Egg](https://wiki.fabricmc.net/tutorial:spawn_egg)
+[Creating a Custom Projectile](https://wiki.fabricmc.net/tutorial:projectiles)
+
+### Fluids
+-  [Creating a Fluid](https://wiki.fabricmc.net/tutorial:fluids)
+
+[Creating a Fluid](https://wiki.fabricmc.net/tutorial:fluids)
+
+### Mixins & ASM
+The usage of [SpongePowered's Mixin library](https://github.com/SpongePowered/Mixin), which is a highly complex topic. We recommend you read these pages thoroughly.
+-  [Introduction](https://wiki.fabricmc.net/tutorial:mixin_introduction)
+
+-  [Intro to Java Bytecode (Docs)](https://docs.fabricmc.net/develop/mixins/bytecode)
+
+-  [Tutorial: Making your first Mixin](https://wiki.fabricmc.net/tutorial:mixin_your_first_mixin)
+
+-  [Mixin registration](https://wiki.fabricmc.net/tutorial:mixin_registration)
+
+-  [@Inject](https://wiki.fabricmc.net/tutorial:mixin_injects)
+
+-  [Accessors and Invokers](https://wiki.fabricmc.net/tutorial:mixin_accessors)
+
+-  [Overriding a Mixin Target's parent](https://wiki.fabricmc.net/tutorial:mixin_override)
+
+-  [Redirectors](https://wiki.fabricmc.net/tutorial:mixin_redirectors)
+
+ [Method redirectors](https://wiki.fabricmc.net/tutorial:mixin_redirectors_methods)
+
+
+
+-  [Method redirectors](https://wiki.fabricmc.net/tutorial:mixin_redirectors_methods)
+
+-  [Tips](https://wiki.fabricmc.net/tutorial:mixin_tips) (WIP)
+
+-  [Examples](https://wiki.fabricmc.net/tutorial:mixin_examples)
+
+-  [Hotswapping Mixins](https://wiki.fabricmc.net/tutorial:mixin_hotswaps)
+
+-  [Exporting and Dumping Mixin Targets](https://wiki.fabricmc.net/tutorial:mixin_export)
+
+-  [Access Widening](https://wiki.fabricmc.net/tutorial:accesswidening)
+
+-  [Reflection](https://wiki.fabricmc.net/tutorial:reflection)
+
+-  [Interface Injection](https://wiki.fabricmc.net/tutorial:interface_injection)
+
+[Introduction](https://wiki.fabricmc.net/tutorial:mixin_introduction)
+[Intro to Java Bytecode (Docs)](https://docs.fabricmc.net/develop/mixins/bytecode)
+[Tutorial: Making your first Mixin](https://wiki.fabricmc.net/tutorial:mixin_your_first_mixin)
+[Mixin registration](https://wiki.fabricmc.net/tutorial:mixin_registration)
+[@Inject](https://wiki.fabricmc.net/tutorial:mixin_injects)
+[Accessors and Invokers](https://wiki.fabricmc.net/tutorial:mixin_accessors)
+[Overriding a Mixin Target's parent](https://wiki.fabricmc.net/tutorial:mixin_override)
+[Redirectors](https://wiki.fabricmc.net/tutorial:mixin_redirectors)
+-  [Method redirectors](https://wiki.fabricmc.net/tutorial:mixin_redirectors_methods)
+
+[Method redirectors](https://wiki.fabricmc.net/tutorial:mixin_redirectors_methods)
+[Tips](https://wiki.fabricmc.net/tutorial:mixin_tips)
+[Examples](https://wiki.fabricmc.net/tutorial:mixin_examples)
+[Hotswapping Mixins](https://wiki.fabricmc.net/tutorial:mixin_hotswaps)
+[Exporting and Dumping Mixin Targets](https://wiki.fabricmc.net/tutorial:mixin_export)
+[Access Widening](https://wiki.fabricmc.net/tutorial:accesswidening)
+[Reflection](https://wiki.fabricmc.net/tutorial:reflection)
+[Interface Injection](https://wiki.fabricmc.net/tutorial:interface_injection)
+
+### Publishing
+-  [Publishing Mods on Modrinth with Minotaur](https://wiki.fabricmc.net/tutorial:minotaur)
+
+-  [Publishing Mods on CurseForge with CurseGradle](https://wiki.fabricmc.net/tutorial:cursegradle)
+
+-  [Publishing mods on CurseForge, Modrinth & GitHub with MC-Publish](https://wiki.fabricmc.net/tutorial:publishing_mods_using_github_actions)
+
+[Publishing Mods on Modrinth with Minotaur](https://wiki.fabricmc.net/tutorial:minotaur)
+[Publishing Mods on CurseForge with CurseGradle](https://wiki.fabricmc.net/tutorial:cursegradle)
+[Publishing mods on CurseForge, Modrinth & GitHub with MC-Publish](https://wiki.fabricmc.net/tutorial:publishing_mods_using_github_actions)
+
+### Miscellaneous
+-  [Introduction to RecipeTypes](https://wiki.fabricmc.net/tutorial:recipe_types_introduction)
+
+ [Adding a recipe type (DRAFT)](https://wiki.fabricmc.net/tutorial:recipe_type)
+
+ [Adding a cooking recipe type](https://wiki.fabricmc.net/tutorial:cooking_recipe_type)
+
+
+
+-  [Adding a recipe type (DRAFT)](https://wiki.fabricmc.net/tutorial:recipe_type)
+
+-  [Adding a cooking recipe type](https://wiki.fabricmc.net/tutorial:cooking_recipe_type)
+
+-  [Mining Levels](https://wiki.fabricmc.net/tutorial:mining_levels)
+
+-  [Global World Data](https://wiki.fabricmc.net/tutorial:global_data)
+
+ [Saved Data](https://docs.fabricmc.net/develop/saved-data) ([older version](https://wiki.fabricmc.net/tutorial:persistent_states))
+
+
+
+-  [Saved Data](https://docs.fabricmc.net/develop/saved-data) ([older version](https://wiki.fabricmc.net/tutorial:persistent_states))
+
+-  [Raycasting](https://wiki.fabricmc.net/tutorial:pixel_raycast)
+
+-  [Custom Keybindings](https://wiki.fabricmc.net/tutorial:keybinds)
+
+-  [Networking](https://docs.fabricmc.net/develop/networking) ([older version](https://wiki.fabricmc.net/tutorial:networking))
+
+-  [Status Effects](https://docs.fabricmc.net/develop/entities/effects)
+
+-  [Adding a Particle](https://docs.fabricmc.net/develop/rendering/particles/creating-particles)
+
+-  [Adding a Potion](https://docs.fabricmc.net/develop/items/potions)
+
+-  [Adding a Damage Type](https://docs.fabricmc.net/develop/entities/damage-types)
+
+-  [Playing Sounds](https://docs.fabricmc.net/develop/sounds/using-sounds)
+
+-  [Custom Gamerule](https://wiki.fabricmc.net/tutorial:gamerule)
+
+-  [Custom Data/Resource Pack Resources](https://wiki.fabricmc.net/tutorial:custom_resources)
+
+-  [Tag Conventions](https://wiki.fabricmc.net/tutorial:tags)
+
+-  [Adding Player Statistics](https://wiki.fabricmc.net/tutorial:stats)
+
+-  [Modding Tips](https://wiki.fabricmc.net/tutorial:modding_tips) 
+
+-  [Fluid, Item and Energy Transfer](https://wiki.fabricmc.net/tutorial:transfer-api)
+
+-  [Creating a Screen](https://wiki.fabricmc.net/tutorial:screen)
+
+[Introduction to RecipeTypes](https://wiki.fabricmc.net/tutorial:recipe_types_introduction)
+-  [Adding a recipe type (DRAFT)](https://wiki.fabricmc.net/tutorial:recipe_type)
+
+-  [Adding a cooking recipe type](https://wiki.fabricmc.net/tutorial:cooking_recipe_type)
+
+[Adding a recipe type (DRAFT)](https://wiki.fabricmc.net/tutorial:recipe_type)
+[Adding a cooking recipe type](https://wiki.fabricmc.net/tutorial:cooking_recipe_type)
+[Mining Levels](https://wiki.fabricmc.net/tutorial:mining_levels)
+[Global World Data](https://wiki.fabricmc.net/tutorial:global_data)
+-  [Saved Data](https://docs.fabricmc.net/develop/saved-data) ([older version](https://wiki.fabricmc.net/tutorial:persistent_states))
+
+[Saved Data](https://docs.fabricmc.net/develop/saved-data)
+[older version](https://wiki.fabricmc.net/tutorial:persistent_states)
+[Raycasting](https://wiki.fabricmc.net/tutorial:pixel_raycast)
+[Custom Keybindings](https://wiki.fabricmc.net/tutorial:keybinds)
+[Networking](https://docs.fabricmc.net/develop/networking)
+[older version](https://wiki.fabricmc.net/tutorial:networking)
+[Status Effects](https://docs.fabricmc.net/develop/entities/effects)
+[Adding a Particle](https://docs.fabricmc.net/develop/rendering/particles/creating-particles)
+[Adding a Potion](https://docs.fabricmc.net/develop/items/potions)
+[Adding a Damage Type](https://docs.fabricmc.net/develop/entities/damage-types)
+[Playing Sounds](https://docs.fabricmc.net/develop/sounds/using-sounds)
+[Custom Gamerule](https://wiki.fabricmc.net/tutorial:gamerule)
+[Custom Data/Resource Pack Resources](https://wiki.fabricmc.net/tutorial:custom_resources)
+[Tag Conventions](https://wiki.fabricmc.net/tutorial:tags)
+[Adding Player Statistics](https://wiki.fabricmc.net/tutorial:stats)
+[Modding Tips](https://wiki.fabricmc.net/tutorial:modding_tips)
+[Fluid, Item and Energy Transfer](https://wiki.fabricmc.net/tutorial:transfer-api)
+[Creating a Screen](https://wiki.fabricmc.net/tutorial:screen)
+
+### Toolchain
+-  [Migrating between Mappings](https://docs.fabricmc.net/develop/migrating-mappings)
+
+-  [Using Mappings](https://wiki.fabricmc.net/tutorial:mappings)
+
+[Migrating between Mappings](https://docs.fabricmc.net/develop/migrating-mappings)
+[Using Mappings](https://wiki.fabricmc.net/tutorial:mappings)
+
+### Contribute to Fabric
+-  [The Fabric Feature Procedure](https://wiki.fabricmc.net/tutorial:feature_procedure)
+
+-  [Updating Yarn to a new Minecraft version](https://wiki.fabricmc.net/tutorial:updating_yarn)
+
+[The Fabric Feature Procedure](https://wiki.fabricmc.net/tutorial:feature_procedure)
+[Updating Yarn to a new Minecraft version](https://wiki.fabricmc.net/tutorial:updating_yarn)
+
+### Other pages
+-  [Archived Pages](https://wiki.fabricmc.net/tutorial:archived_pages)
+
+-  [Fabric on GitHub](https://github.com/FabricMC)
+
+-  [Fabric API on GitHub](https://github.com/FabricMC/fabric)
+
+-  [Yarn Mappings on GitHub](https://github.com/FabricMC/yarn)
+
+-  [List of Useful Tutorials](https://wiki.fabricmc.net/community:list_of_useful_gists)
+
+-  [Developer Guide on Fabric Documentation](https://docs.fabricmc.net/develop/)
+
+-  [Community Libraries](https://wiki.fabricmc.net/community:library_mods)
+
+[Archived Pages](https://wiki.fabricmc.net/tutorial:archived_pages)
+[Fabric on GitHub](https://github.com/FabricMC)
+[Fabric API on GitHub](https://github.com/FabricMC/fabric)
+[Yarn Mappings on GitHub](https://github.com/FabricMC/yarn)
+[List of Useful Tutorials](https://wiki.fabricmc.net/community:list_of_useful_gists)
+[Developer Guide on Fabric Documentation](https://docs.fabricmc.net/develop/)
+[Community Libraries](https://wiki.fabricmc.net/community:library_mods)
+
+### Table of Contents
+
+- [Setting up a mod development environment](https://wiki.fabricmc.net/tutorial:setup#setting_up_a_mod_development_environment)
+
+[Prerequisites](https://wiki.fabricmc.net/tutorial:setup#prerequisites)
+
+[Installing JDK](https://wiki.fabricmc.net/tutorial:setup#installing_jdk)
+[Installing an IDE](https://wiki.fabricmc.net/tutorial:setup#installing_an_ide)
+
+
+[Creating the project](https://wiki.fabricmc.net/tutorial:setup#creating_the_project)
+[Configuring the project](https://wiki.fabricmc.net/tutorial:setup#configuring_the_project)
+
+[IntelliJ IDEA](https://wiki.fabricmc.net/tutorial:setup#intellij_idea)
+[Eclipse](https://wiki.fabricmc.net/tutorial:setup#eclipse)
+[Visual Studio Code](https://wiki.fabricmc.net/tutorial:setup#visual_studio_code)
+
+
+[Generating Minecraft Sources](https://wiki.fabricmc.net/tutorial:setup#generating_minecraft_sources)
+[Advice](https://wiki.fabricmc.net/tutorial:setup#advice)
+[Troubleshooting](https://wiki.fabricmc.net/tutorial:setup#troubleshooting)
+
+["no usages" on every method](https://wiki.fabricmc.net/tutorial:setup#no_usages_on_every_method)
+[Missing sounds](https://wiki.fabricmc.net/tutorial:setup#missing_sounds)
+[Could not find or load class / no JDK module specified](https://wiki.fabricmc.net/tutorial:setup#could_not_find_or_load_class_no_jdk_module_specified)
+[Minecraft game provider couldn't locate the game](https://wiki.fabricmc.net/tutorial:setup#minecraft_game_provider_couldn_t_locate_the_game)
+["processResources" not run](https://wiki.fabricmc.net/tutorial:setup#processresources_not_run)
+
+
+[What's Next?](https://wiki.fabricmc.net/tutorial:setup#what_s_next)
+
+- [Prerequisites](https://wiki.fabricmc.net/tutorial:setup#prerequisites)
+
+[Installing JDK](https://wiki.fabricmc.net/tutorial:setup#installing_jdk)
+[Installing an IDE](https://wiki.fabricmc.net/tutorial:setup#installing_an_ide)
+
+
+- [Installing JDK](https://wiki.fabricmc.net/tutorial:setup#installing_jdk)
+- [Installing an IDE](https://wiki.fabricmc.net/tutorial:setup#installing_an_ide)
+- [Creating the project](https://wiki.fabricmc.net/tutorial:setup#creating_the_project)
+- [Configuring the project](https://wiki.fabricmc.net/tutorial:setup#configuring_the_project)
+
+[IntelliJ IDEA](https://wiki.fabricmc.net/tutorial:setup#intellij_idea)
+[Eclipse](https://wiki.fabricmc.net/tutorial:setup#eclipse)
+[Visual Studio Code](https://wiki.fabricmc.net/tutorial:setup#visual_studio_code)
+
+
+- [IntelliJ IDEA](https://wiki.fabricmc.net/tutorial:setup#intellij_idea)
+- [Eclipse](https://wiki.fabricmc.net/tutorial:setup#eclipse)
+- [Visual Studio Code](https://wiki.fabricmc.net/tutorial:setup#visual_studio_code)
+- [Generating Minecraft Sources](https://wiki.fabricmc.net/tutorial:setup#generating_minecraft_sources)
+- [Advice](https://wiki.fabricmc.net/tutorial:setup#advice)
+- [Troubleshooting](https://wiki.fabricmc.net/tutorial:setup#troubleshooting)
+
+["no usages" on every method](https://wiki.fabricmc.net/tutorial:setup#no_usages_on_every_method)
+[Missing sounds](https://wiki.fabricmc.net/tutorial:setup#missing_sounds)
+[Could not find or load class / no JDK module specified](https://wiki.fabricmc.net/tutorial:setup#could_not_find_or_load_class_no_jdk_module_specified)
+[Minecraft game provider couldn't locate the game](https://wiki.fabricmc.net/tutorial:setup#minecraft_game_provider_couldn_t_locate_the_game)
+["processResources" not run](https://wiki.fabricmc.net/tutorial:setup#processresources_not_run)
+
+
+- ["no usages" on every method](https://wiki.fabricmc.net/tutorial:setup#no_usages_on_every_method)
+- [Missing sounds](https://wiki.fabricmc.net/tutorial:setup#missing_sounds)
+- [Could not find or load class / no JDK module specified](https://wiki.fabricmc.net/tutorial:setup#could_not_find_or_load_class_no_jdk_module_specified)
+- [Minecraft game provider couldn't locate the game](https://wiki.fabricmc.net/tutorial:setup#minecraft_game_provider_couldn_t_locate_the_game)
+- ["processResources" not run](https://wiki.fabricmc.net/tutorial:setup#processresources_not_run)
+- [What's Next?](https://wiki.fabricmc.net/tutorial:setup#what_s_next)
+[Setting up a mod development environment](https://wiki.fabricmc.net/tutorial:setup#setting_up_a_mod_development_environment)
+- [Prerequisites](https://wiki.fabricmc.net/tutorial:setup#prerequisites)
+
+[Installing JDK](https://wiki.fabricmc.net/tutorial:setup#installing_jdk)
+[Installing an IDE](https://wiki.fabricmc.net/tutorial:setup#installing_an_ide)
+
+### Table of Contents
+
+- [Installing JDK](https://wiki.fabricmc.net/tutorial:setup#installing_jdk)
+- [Installing an IDE](https://wiki.fabricmc.net/tutorial:setup#installing_an_ide)
+- [Creating the project](https://wiki.fabricmc.net/tutorial:setup#creating_the_project)
+- [Configuring the project](https://wiki.fabricmc.net/tutorial:setup#configuring_the_project)
+
+[IntelliJ IDEA](https://wiki.fabricmc.net/tutorial:setup#intellij_idea)
+[Eclipse](https://wiki.fabricmc.net/tutorial:setup#eclipse)
+[Visual Studio Code](https://wiki.fabricmc.net/tutorial:setup#visual_studio_code)
+
+
+- [IntelliJ IDEA](https://wiki.fabricmc.net/tutorial:setup#intellij_idea)
+- [Eclipse](https://wiki.fabricmc.net/tutorial:setup#eclipse)
+- [Visual Studio Code](https://wiki.fabricmc.net/tutorial:setup#visual_studio_code)
+- [Generating Minecraft Sources](https://wiki.fabricmc.net/tutorial:setup#generating_minecraft_sources)
+- [Advice](https://wiki.fabricmc.net/tutorial:setup#advice)
+- [Troubleshooting](https://wiki.fabricmc.net/tutorial:setup#troubleshooting)
+
+["no usages" on every method](https://wiki.fabricmc.net/tutorial:setup#no_usages_on_every_method)
+[Missing sounds](https://wiki.fabricmc.net/tutorial:setup#missing_sounds)
+[Could not find or load class / no JDK module specified](https://wiki.fabricmc.net/tutorial:setup#could_not_find_or_load_class_no_jdk_module_specified)
+[Minecraft game provider couldn't locate the game](https://wiki.fabricmc.net/tutorial:setup#minecraft_game_provider_couldn_t_locate_the_game)
+["processResources" not run](https://wiki.fabricmc.net/tutorial:setup#processresources_not_run)
+
+
+- ["no usages" on every method](https://wiki.fabricmc.net/tutorial:setup#no_usages_on_every_method)
+- [Missing sounds](https://wiki.fabricmc.net/tutorial:setup#missing_sounds)
+- [Could not find or load class / no JDK module specified](https://wiki.fabricmc.net/tutorial:setup#could_not_find_or_load_class_no_jdk_module_specified)
+- [Minecraft game provider couldn't locate the game](https://wiki.fabricmc.net/tutorial:setup#minecraft_game_provider_couldn_t_locate_the_game)
+- ["processResources" not run](https://wiki.fabricmc.net/tutorial:setup#processresources_not_run)
+- [What's Next?](https://wiki.fabricmc.net/tutorial:setup#what_s_next)
+[Prerequisites](https://wiki.fabricmc.net/tutorial:setup#prerequisites)
+- [Installing JDK](https://wiki.fabricmc.net/tutorial:setup#installing_jdk)
+- [Installing an IDE](https://wiki.fabricmc.net/tutorial:setup#installing_an_ide)
+[Installing JDK](https://wiki.fabricmc.net/tutorial:setup#installing_jdk)
+[Installing an IDE](https://wiki.fabricmc.net/tutorial:setup#installing_an_ide)
+[Creating the project](https://wiki.fabricmc.net/tutorial:setup#creating_the_project)
+[Configuring the project](https://wiki.fabricmc.net/tutorial:setup#configuring_the_project)
+- [IntelliJ IDEA](https://wiki.fabricmc.net/tutorial:setup#intellij_idea)
+- [Eclipse](https://wiki.fabricmc.net/tutorial:setup#eclipse)
+- [Visual Studio Code](https://wiki.fabricmc.net/tutorial:setup#visual_studio_code)
+[IntelliJ IDEA](https://wiki.fabricmc.net/tutorial:setup#intellij_idea)
+[Eclipse](https://wiki.fabricmc.net/tutorial:setup#eclipse)
+[Visual Studio Code](https://wiki.fabricmc.net/tutorial:setup#visual_studio_code)
+[Generating Minecraft Sources](https://wiki.fabricmc.net/tutorial:setup#generating_minecraft_sources)
+[Advice](https://wiki.fabricmc.net/tutorial:setup#advice)
+[Troubleshooting](https://wiki.fabricmc.net/tutorial:setup#troubleshooting)
+- ["no usages" on every method](https://wiki.fabricmc.net/tutorial:setup#no_usages_on_every_method)
+- [Missing sounds](https://wiki.fabricmc.net/tutorial:setup#missing_sounds)
+- [Could not find or load class / no JDK module specified](https://wiki.fabricmc.net/tutorial:setup#could_not_find_or_load_class_no_jdk_module_specified)
+- [Minecraft game provider couldn't locate the game](https://wiki.fabricmc.net/tutorial:setup#minecraft_game_provider_couldn_t_locate_the_game)
+- ["processResources" not run](https://wiki.fabricmc.net/tutorial:setup#processresources_not_run)
+["no usages" on every method](https://wiki.fabricmc.net/tutorial:setup#no_usages_on_every_method)
+[Missing sounds](https://wiki.fabricmc.net/tutorial:setup#missing_sounds)
+[Could not find or load class / no JDK module specified](https://wiki.fabricmc.net/tutorial:setup#could_not_find_or_load_class_no_jdk_module_specified)
+[Minecraft game provider couldn't locate the game](https://wiki.fabricmc.net/tutorial:setup#minecraft_game_provider_couldn_t_locate_the_game)
+
+### Table of Contents
+
+["processResources" not run](https://wiki.fabricmc.net/tutorial:setup#processresources_not_run)
+[What's Next?](https://wiki.fabricmc.net/tutorial:setup#what_s_next)
+[https://docs.fabricmc.net/develop/getting-started/setting-up](https://docs.fabricmc.net/develop/getting-started/setting-up)
+
+### Installing JDK
+To develop mods, a Java Development Kit (JDK) is required. Visit [https://adoptium.net/en-GB/temurin/releases](https://adoptium.net/en-GB/temurin/releases) for installers.
+-  Since 1.20.5, Java 21 or newer is required.
+
+-  Since 1.18, Java 17 or newer is required.
+
+-  Since 1.17, Java 16 or newer is required.
+
+-  For older Minecraft versions, Java 8 or newer is required.
+
+More information about installing Java can be found:
+-  Fabric Wiki's player tutorial of installing Java for [Windows](https://wiki.fabricmc.net/player:tutorials:java:windows), [MacOS](https://wiki.fabricmc.net/player:tutorials:java:mac) or [Linux](https://wiki.fabricmc.net/player:tutorials:java:linux)
+
+-  Fabric Documentation's player tutorial of installing Java for [Windows](https://docs.fabricmc.net/zh_cn/players/installing-java/windows), [MacOS](https://fabricmc.net/wiki/player:tutorials:java:mac) or [Linux](https://docs.fabricmc.net/zh_cn/players/installing-java/linux)
+
+[Windows](https://wiki.fabricmc.net/player:tutorials:java:windows)
+[MacOS](https://wiki.fabricmc.net/player:tutorials:java:mac)
+[Linux](https://wiki.fabricmc.net/player:tutorials:java:linux)
+[Windows](https://docs.fabricmc.net/zh_cn/players/installing-java/windows)
+[MacOS](https://fabricmc.net/wiki/player:tutorials:java:mac)
+[Linux](https://docs.fabricmc.net/zh_cn/players/installing-java/linux)
+
+### Installing an IDE
+Before writing your code, you should have a Java IDE (Integrated Development Environment) installed. Such as [Intellij IDEA Community Edition](https://www.jetbrains.com/idea/download/?section=windows#community-edition) (recommended) or [Eclipse](https://www.eclipse.org/downloads/). You may also use any other code editors, such as [Visual Studio Code](https://code.visualstudio.com/).
+If you are not familiar with any of these, we recommend to use Intellij IDEA as that is what most people choose for modding.
+
+## Creating the project
+
+[Fabric Documentation](https://docs.fabricmc.net/develop/getting-started/creating-a-project)
+There are multiple ways to create a project:
+-  copy template project from [fabric-example-mod](https://github.com/FabricMC/fabric-example-mod/), excluding the LICENSE and README.md file
+
+-  use template generator at [the template generator](https://fabricmc.net/develop/template/)
+
+-  use Intellij IDEA's generator, which requires installing Intellij IDEA's Minecraft Development plugin.
+
+[fabric-example-mod](https://github.com/FabricMC/fabric-example-mod/)
+
+```
+LICENSE
+```
+
+
+```
+README.md
+```
+
+[the template generator](https://fabricmc.net/develop/template/)
+After creating a project, please edit some key files as you wish:
+-  Edit gradle.properties:
+
+ Make sure to set archives_base_name and maven_group to your preferred values.
+
+ Make sure to update the versions of Minecraft, the mappings, the loader and the loom - all of which can be queried through [https://fabricmc.net/develop/](https://fabricmc.net/develop/) - to match the versions you wish to target.
+
+ Add any other dependencies you plan to use in build.gradle.
+
+
+
+-  Make sure to set archives_base_name and maven_group to your preferred values.
+
+-  Make sure to update the versions of Minecraft, the mappings, the loader and the loom - all of which can be queried through [https://fabricmc.net/develop/](https://fabricmc.net/develop/) - to match the versions you wish to target.
+
+-  Add any other dependencies you plan to use in build.gradle.
+
+-  Edit fabric.mod.json:
+
+ Change the versions your mod is compatible, and mods your mod will depend on, as well as some other information like mod id. For information, see [usage of the file](https://wiki.fabricmc.net/documentation:fabric_mod_json).
+
+
+
+-  Change the versions your mod is compatible, and mods your mod will depend on, as well as some other information like mod id. For information, see [usage of the file](https://wiki.fabricmc.net/documentation:fabric_mod_json).
+
+
+```
+gradle.properties
+```
+
+-  Make sure to set archives_base_name and maven_group to your preferred values.
+
+-  Make sure to update the versions of Minecraft, the mappings, the loader and the loom - all of which can be queried through [https://fabricmc.net/develop/](https://fabricmc.net/develop/) - to match the versions you wish to target.
+
+-  Add any other dependencies you plan to use in build.gradle.
+
+
+```
+archives_base_name
+```
+
+
+```
+maven_group
+```
+
+[https://fabricmc.net/develop/](https://fabricmc.net/develop/)
+
+```
+build.gradle
+```
+
+
+```
+fabric.mod.json
+```
+
+-  Change the versions your mod is compatible, and mods your mod will depend on, as well as some other information like mod id. For information, see [usage of the file](https://wiki.fabricmc.net/documentation:fabric_mod_json).
+
+[usage of the file](https://wiki.fabricmc.net/documentation:fabric_mod_json)
+
+```
+fabric
+```
+
+
+```
+fabric-api
+```
+
+
+```
+depends
+```
+
+
+```
+fabric.mod.json
+```
+
+
+```
+fabric
+```
+
+### IntelliJ IDEA
+If you are using IntelliJ IDEA by JetBrains, please follow these steps:
+1.  In the IDEA main menu, select 'Import Project' (or File → Open… if you already have a project open).
+
+2.  Select the project's “build.gradle” file to import the project.
+
+3.  After Gradle is done setting up, close (File → Close Project) and re-open the project to fix run configurations not displaying correctly. If the run configurations still don't show up, try reimporting the Gradle project from the Gradle tab in IDEA. You can also manually run ideaSyncTask gradle task to generate run configurations.
+
+
+```
+ideaSyncTask
+```
+
+NOTE: Don't run the idea gradle task. It is known to break development environment.
+
+```
+idea
+```
+
+
+#### Minecraft Development plugin
+If you are using IntelliJ IDEA, it is highly recommended to install [Minecraft Development plugin](https://plugins.jetbrains.com/plugin/8327), which support automatically generating Fabric projects as well as some mixin related features like inspections, generating accessors/shadow fields, and copying Mixin Target References (JVM Descriptors).
+You can install it using IntelliJ's internal plugin browser by navigating to File → Settings → Plugins, then clicking the Marketplace tab and searching for Minecraft.
+For launching Minecraft and start debugging, see [Fabric Documentations](https://docs.fabricmc.net/develop/getting-started/launching-the-game).
+
+### Eclipse
+If you are using Eclipse and you would like to have the IDE run configs you can run gradlew eclipse. The project can then be imported as a normal (non-gradle) Eclipse project into your workspace using the 'File' - 'Import…' menu, then 'General' → 'Existing Projects into Workspace'.
+
+```
+gradlew eclipse
+```
+
+### Visual Studio Code
+If you are using VSCode, please follow [these instructions](https://wiki.fabricmc.net/tutorial:setup:vscode).
+
+## Generating Minecraft Sources
+Reading the Minecraft source is an essential part of modding. Unfortunately, we can't publish the Minecraft source because it violates the Minecraft EULA. You need to generate the Minecraft source yourself.
+To generate the Minecraft source. run the genSources gradle task. If your IDE doesn't have gradle integration, run the following command in the terminal: gradlew genSources (or ./gradlew genSources on Linux/macOS). It can take a while depending on your computer power. You may need to refresh gradle after running the task.
+
+```
+genSources
+```
+
+
+```
+gradlew genSources
+```
+
+
+```
+./gradlew genSources
+```
+
+See [Reading the Minecraft source](https://wiki.fabricmc.net/tutorial:reading_mc_code) for how to read the source.
+
+## Advice
+-  While Fabric API is not strictly necessary for developing mods, its primary goal is to provide cross-compatibility and hooks where the game engine does not, and as such it is highly recommended! Even some of the tutorials on the wiki implicitly require Fabric API.
+
+-  Occasionally, with development of fabric-loom (our Gradle build plugin) issues may crop up which require resetting the cache files. This can be done by running gradlew cleanloom. Running gradlew --stop can also help with a few rare issues.
+
+-  Keep up with the latest Loom version (which is defined in build.gradle) and the Fabric Loader and Fabric API version for your mod (which is defined in build.gradle or gradle.properties). Latest version can be found in [https://fabricmc.net/develop/](https://fabricmc.net/develop/). Even the old version Minecraft is supported by latest Loom and latest Fabric Loader.
+
+-  Keep up with the latest Gradle version, which can be defined in gradle/wrapper/gradle-wrapper.properties. Old version Minecraft is supported by latest Gradle.
+
+ Different Gradle versions require different Java versions.
+
+
+
+-  Different Gradle versions require different Java versions.
+
+-  If you're developing mods for old version Minecraft, besides changing gradle.properties, you may also need to change the Java compatibility version in build.gradle and the mixin config.
+
+-  Don't hesitate to ask questions! We're here to help you and work with you to make your dream mod a reality.
+
+
+```
+gradlew cleanloom
+```
+
+
+```
+gradlew --stop
+```
+
+
+```
+build.gradle
+```
+
+
+```
+build.gradle
+```
+
+
+```
+gradle.properties
+```
+
+[https://fabricmc.net/develop/](https://fabricmc.net/develop/)
+
+```
+gradle/wrapper/gradle-wrapper.properties
+```
+
+-  Different Gradle versions require different Java versions.
+
+
+```
+gradle.properties
+```
+
+
+```
+build.gradle
+```
+
+### "no usages" on every method
+After running the genSources gradle task in IntelliJ IDEA, check if the sources are attached properly. Open a Minecraft .class file and click on the “Choose Sources…” button on the top right of the screen. Select the jar with “-sources” at the end (e.g. .gradle\loom-cache\1.20.1\net.fabricmc.yarn.1_20_1.1.20.1+build.10-v2\minecraft-project-@-merged-named-sources.jar)
+
+```
+genSources
+```
+
+
+```
+.gradle\loom-cache\1.20.1\net.fabricmc.yarn.1_20_1.1.20.1+build.10-v2\minecraft-project-@-merged-named-sources.jar
+```
+
+### Missing sounds
+Sometimes, when importing the Gradle project into an IDE, the assets might not download correctly. In this case, run the downloadAssets task manually - either using IDE's built-in menu or by simply running gradlew downloadAssets.
+
+```
+downloadAssets
+```
+
+
+```
+gradlew downloadAssets
+```
+
+### Could not find or load class / no JDK module specified
+Sometimes the run config may be invalid, reporting errors such as:
+-  Could not find or load class net.fabricmc.devlaunchinjector.Main: java.lang.ClassNotFoundException
+
+-  “no JDK module specified” in the run config
+
+
+```
+Could not find or load class net.fabricmc.devlaunchinjector.Main: java.lang.ClassNotFoundException
+```
+
+There are several fixes, among which one may be a potential fix:
+-  If you're using Intellij IDEA, go to “project strcture” and then select “Modules” tab, then clear all modules. Then reload your gradle project.
+
+-  It seems to be a bug of Intellij IDEA since a recent update 2023.2. To fix, just delete the .idea folder entirely and then restart Intellij IDEA. The module will be reconstructed. You may need to specify Java versions again. If after restarting there is no run config, you can run gradle ideaSyncTask then check it again.
+
+-  If you have subprojects, please ensure your subprojects are configured correctly. If the build.gradle of your subproject exists, check whether the gradle plugin maven-publish is enabled or applied to it. Try adding apply plugin: maven-publush in the build.gradle file, if it is not declared at all.
+
+-  If the issue still happens, edit the run config, and try modifying the module (the value for parameter -cp) to other values.
+
+
+```
+.idea
+```
+
+
+```
+gradle ideaSyncTask
+```
+
+
+```
+build.gradle
+```
+
+
+```
+maven-publish
+```
+
+
+```
+apply plugin: maven-publush
+```
+
+
+```
+build.gradle
+```
+
+
+```
+-cp
+```
+
+### Minecraft game provider couldn't locate the game
+Sometimes you may come with some error like:
+-  java.lang.ClassNotFoundException: net.fabricmc.loader.impl.launch.knot.KnotClient
+
+-  java.lang.TypeNotPresentException: Type net/minecraft/util/Identifier not present
+
+-  java.lang.RuntimeException: Minecraft game provider couldn't locate the game! The game may be absent from the class path, lacks some expected files, suffers from jar corruption or is of an unsupported variety/version.
+
+
+```
+java.lang.ClassNotFoundException: net.fabricmc.loader.impl.launch.knot.KnotClient
+```
+
+
+```
+java.lang.TypeNotPresentException: Type net/minecraft/util/Identifier not present
+```
+
+
+```
+java.lang.RuntimeException: Minecraft game provider couldn't locate the game! The game may be absent from the class path, lacks some expected files, suffers from jar corruption or is of an unsupported variety/version.
+```
+
+This may be because the project path contains non-ASCII characters that may cause incompatibility. Try move the project to paths without non-ASCII characters, or in the run config of “Minecraft Client” and “Minecraft Server”, set “Shorten Command Line” from “@argfile (Java 9+)” to “none”. This also applies to the [Data Generation](https://wiki.fabricmc.net/tutorial:datagen_setup) run config.
+Another potential fix, is to go to Region Settings in the Settings or Contral Panel of Windows, go to Region Settings, and enable “Beta: Use Unicode UTF-8 for worldwide language support”, and then reboot.
+
+### "processResources" not run
+That may be because you're using Intellij IDEA to build and run. If issue happens, try open the 'Gradle Settings' dialog from the Gradle tab, and then change the 'Build and run using' and 'Run tests using' fields from 'IntelliJ IDEA' to 'Gradle (default)'.
+
+## What's Next?
+
+Try [adding an item](https://docs.fabricmc.net/develop/items/first-item) or [a block](https://docs.fabricmc.net/develop/blocks/first-block). It's also a good idea to visit [Applying changes without restarting Minecraft](https://wiki.fabricmc.net/tutorial:hotswapping).
+
+### Page Tools
+
+- [Show pagesource](https://wiki.fabricmc.net/tutorial:setup?do=edit)
+- [Old revisions](https://wiki.fabricmc.net/tutorial:setup?do=revisions)
+- [Backlinks](https://wiki.fabricmc.net/tutorial:setup?do=backlink)
+- [Back to top](https://wiki.fabricmc.net/tutorial:setup#dokuwiki__top)
+[Show pagesource](https://wiki.fabricmc.net/tutorial:setup?do=edit)
+[Old revisions](https://wiki.fabricmc.net/tutorial:setup?do=revisions)
+[Backlinks](https://wiki.fabricmc.net/tutorial:setup?do=backlink)
+[Back to top](https://wiki.fabricmc.net/tutorial:setup#dokuwiki__top)
+[CC Attribution-Noncommercial-Share Alike 4.0 International](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en)

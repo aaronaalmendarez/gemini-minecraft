@@ -1,0 +1,22 @@
+# Build output
+build/
+run/
+logs/
+*.log
+
+# Gradle
+.gradle/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+*.key
+

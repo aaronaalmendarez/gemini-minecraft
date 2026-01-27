@@ -1,0 +1,34 @@
+### IntelliJ IDEA
+If you are using IntelliJ IDEA by JetBrains, please follow these steps:
+1.  In the IDEA main menu, select 'Import Project' (or File → Open… if you already have a project open).
+
+2.  Select the project's “build.gradle” file to import the project.
+
+3.  After Gradle is done setting up, close (File → Close Project) and re-open the project to fix run configurations not displaying correctly. If the run configurations still don't show up, try reimporting the Gradle project from the Gradle tab in IDEA. You can also manually run ideaSyncTask gradle task to generate run configurations.
+
+
+```
+ideaSyncTask
+```
+
+NOTE: Don't run the idea gradle task. It is known to break development environment.
+
+```
+idea
+```
+
+
+#### Minecraft Development plugin
+If you are using IntelliJ IDEA, it is highly recommended to install [Minecraft Development plugin](https://plugins.jetbrains.com/plugin/8327), which support automatically generating Fabric projects as well as some mixin related features like inspections, generating accessors/shadow fields, and copying Mixin Target References (JVM Descriptors).
+You can install it using IntelliJ's internal plugin browser by navigating to File → Settings → Plugins, then clicking the Marketplace tab and searching for Minecraft.
+For launching Minecraft and start debugging, see [Fabric Documentations](https://docs.fabricmc.net/develop/getting-started/launching-the-game).
+
+### Eclipse
+If you are using Eclipse and you would like to have the IDE run configs you can run gradlew eclipse. The project can then be imported as a normal (non-gradle) Eclipse project into your workspace using the 'File' - 'Import…' menu, then 'General' → 'Existing Projects into Workspace'.
+
+```
+gradlew eclipse
+```
+
+### Visual Studio Code
+If you are using VSCode, please follow [these instructions](https://wiki.fabricmc.net/tutorial:setup:vscode).

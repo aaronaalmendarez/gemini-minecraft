@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "gemini-ai-companion",
+	"version": "${version}",
+	"name": "Gemini AI Companion",
+	"description": "In-game AI assistant for Minecraft. Chat with /chat to ask, plan, and execute commands. Includes web search, smart retries, command validation, per-player context, and a built-in config UI.",
+	"authors": [
+		"Aaron"
+	],
+	"contact": {
+		"homepage": "",
+		"sources": ""
+	},
+	"license": "MIT",
+	"icon": "assets/gemini-ai-companion/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"aaron.myfirstmod.MyFirstFabricMod"
+		],
+		"client": [
+			"aaron.myfirstmod.MyFirstFabricModClient"
+		]
+	},
+	"mixins": [
+		"my-first-fabric-mod.mixins.json",
+		{
+			"config": "my-first-fabric-mod.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.18.4",
+		"minecraft": "~1.21.1",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}

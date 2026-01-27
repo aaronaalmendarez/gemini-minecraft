@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini AI Chat - Minecraft Mod</title>
+    <meta name="description"
+        content="The most advanced AI assistant mod for Minecraft 1.21.1. Natural language commands, multi-model support, and self-healing command execution.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Hero Section -->
+    <header class="hero">
+        <nav class="nav">
+            <div class="nav-brand">
+                <span class="logo">🤖</span>
+                <span class="brand-text">Gemini AI Chat</span>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#examples">Examples</a>
+                <a href="#commands">Commands</a>
+                <a href="#install">Install</a>
+                <a href="https://github.com" class="btn-nav" target="_blank">GitHub</a>
+            </div>
+            <button class="mobile-menu" aria-label="Menu">☰</button>
+        </nav>
+
+        <div class="hero-content">
+            <div class="badge">Minecraft 1.21.1 • Fabric</div>
+            <h1>Talk to Your Game.<br><span class="gradient-text">AI Understands.</span></h1>
+            <p class="hero-subtitle">The most advanced AI assistant for Minecraft. Natural language commands,
+                self-healing execution, and real-time web search.</p>
+            <div class="hero-buttons">
+                <a href="#install" class="btn btn-primary">
+                    <span>Download Now</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                </a>
+                <a href="#features" class="btn btn-secondary">Learn More</a>
+            </div>
+            <div class="hero-stats">
+                <div class="stat">
+                    <span class="stat-value">2600+</span>
+                    <span class="stat-label">Lines of Code</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">20+</span>
+                    <span class="stat-label">Commands</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">4</span>
+                    <span class="stat-label">AI Models</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="hero-demo">
+            <div class="terminal">
+                <div class="terminal-header">
+                    <span class="dot red"></span>
+                    <span class="dot yellow"></span>
+                    <span class="dot green"></span>
+                    <span class="terminal-title">Minecraft Chat</span>
+                </div>
+                <div class="terminal-body" id="terminal-demo">
+                    <!-- Demo 1: Diamond Sword -->
+                    <div class="demo-slide active" data-demo="0">
+                        <div class="chat-line user">/chat give me a diamond sword with sharpness 5</div>
+                        <div class="chat-line thinking"><span class="rainbow">Thinking...</span></div>
+                        <div class="chat-line ai">[COMMAND] Done! Gave you a diamond sword with Sharpness V.</div>
+                        <div class="chat-line command">give @s
+                            diamond_sword[enchantments={levels:{"minecraft:sharpness":5}}]</div>
+                    </div>
+                    <!-- Demo 2: Netherite Armor -->
+                    <div class="demo-slide" data-demo="1">
+                        <div class="chat-line user">/chat give me full netherite armor with protection 4</div>
+                        <div class="chat-line thinking"><span class="rainbow">Thinking...</span></div>
+                        <div class="chat-line ai">[COMMAND] Done! Full Netherite armor set with Protection IV equipped.
+                        </div>
+                        <div class="chat-line command">give @s netherite_helmet[enchantments={...}] + 3 more</div>
+                    </div>
+                    <!-- Demo 3: Execute Command -->
+                    <div class="demo-slide" data-demo="2">
+                        <div class="chat-line user">/chat execute at all players run summon lightning</div>
+                        <div class="chat-line thinking"><span class="rainbow">Thinking...</span></div>
+                        <div class="chat-line ai">[COMMAND] ⚡ Lightning summoned at all player locations!</div>
+                        <div class="chat-line command">execute as @a at @s run summon lightning_bolt ~ ~ ~</div>
+                    </div>
+                    <!-- Demo 4: Question -->
+                    <div class="demo-slide" data-demo="3">
+                        <div class="chat-line user">/chat where is the nearest stronghold?</div>
+                        <div class="chat-line thinking"><span class="rainbow">Searching...</span></div>
+                        <div class="chat-line ai">[ASK] The nearest stronghold is at X: 1284, Z: -892. Head southeast!
+                        </div>
+                        <div class="chat-line command">locate structure minecraft:stronghold</div>
+                    </div>
+                    <!-- Demo 5: Kill Mobs -->
+                    <div class="demo-slide" data-demo="4">
+                        <div class="chat-line user">/chat kill all zombies within 50 blocks</div>
+                        <div class="chat-line thinking"><span class="rainbow">Thinking...</span></div>
+                        <div class="chat-line ai">[COMMAND] 💀 Eliminated 12 zombies in the area.</div>
+                        <div class="chat-line command">kill @e[type=zombie,distance=..50]</div>
+                    </div>
+                    <!-- Demo 6: Custom Item -->
+                    <div class="demo-slide" data-demo="5">
+                        <div class="chat-line user">/chat give me a knockback 255 stick named "YEET"</div>
+                        <div class="chat-line thinking"><span class="rainbow">Thinking...</span></div>
+                        <div class="chat-line ai">[COMMAND] 🏏 Your legendary YEET stick is ready!</div>
+                        <div class="chat-line command">give @s stick[custom_name='"YEET"',enchantments={...}]</div>
+                    </div>
+                </div>
+                <div class="terminal-dots">
+                    <span class="term-dot active" data-goto="0"></span>
+                    <span class="term-dot" data-goto="1"></span>
+                    <span class="term-dot" data-goto="2"></span>
+                    <span class="term-dot" data-goto="3"></span>
+                    <span class="term-dot" data-goto="4"></span>
+                    <span class="term-dot" data-goto="5"></span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Powered by <span class="gradient-text">Gemini AI</span></h2>
+                <p>Experience Minecraft like never before with intelligent AI assistance</p>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🗣️</div>
+                    <h3>Natural Language</h3>
+                    <p>Just describe what you want. "Give me full netherite armor" — the AI figures out the rest.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Self-Healing</h3>
+                    <p>Commands fail? AI automatically retries with corrections. Up to 10 attempts.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🔍</div>
+                    <h3>Web Search</h3>
+                    <p>AI searches the internet for strategies, spawn locations, and more — with clickable sources.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🧠</div>
+                    <h3>Multi-Model</h3>
+                    <p>Choose your speed: Flash (fast), Flash-Thinking (smart), Pro (deep), or Auto.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">💀</div>
+                    <h3>Death Tracking</h3>
+                    <p>AI remembers your last 20 deaths and uses that to give survival advice.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">⏹️</div>
+                    <h3>Cancellable</h3>
+                    <p>Stop any request with a clickable button or /chat cancel command.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">✨</div>
+                    <h3>Visual Feedback</h3>
+                    <p>Particles and sounds for success, error, and search. Rainbow thinking animation.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Live Sidebar</h3>
+                    <p>Real-time stats: mode, tokens, response time, retries, and context size.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- AI Modes Section -->
+    <section class="modes">
+        <div class="container">
+            <div class="section-header">
+                <h2>Three Intelligent <span class="gradient-text">Modes</span></h2>
+                <p>AI automatically classifies your request</p>
+            </div>
+
+            <div class="modes-grid">
+                <div class="mode-card ask">
+                    <div class="mode-badge">ASK</div>
+                    <h3>Information</h3>
+                    <p>"How do I make a beacon?"</p>
+                    <p>"What biome am I in?"</p>
+                </div>
+
+                <div class="mode-card plan">
+                    <div class="mode-badge">PLAN</div>
+                    <h3>Strategy</h3>
+                    <p>"How should I prepare for the Ender Dragon?"</p>
+                    <p>"What's the best way to find diamonds?"</p>
+                </div>
+
+                <div class="mode-card command">
+                    <div class="mode-badge">COMMAND</div>
+                    <h3>Action</h3>
+                    <p>"Give me 64 golden apples"</p>
+                    <p>"Teleport me to spawn"</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Examples Section -->
+    <section id="examples" class="examples">
+        <div class="container">
+            <div class="section-header">
+                <h2>Examples for <span class="gradient-text">Everyone</span></h2>
+                <p>From your first day to command-line mastery</p>
+            </div>
+
+            <div class="examples-tabs">
+                <button class="example-tab-btn active" data-example="beginner">🌱 Beginner</button>
+                <button class="example-tab-btn" data-example="intermediate">⚔️ Intermediate</button>
+                <button class="example-tab-btn" data-example="advanced">🔥 Advanced</button>
+                <button class="example-tab-btn" data-example="developer">💻 Developer</button>
+            </div>
+
+            <div class="examples-content">
+                <!-- Beginner Examples -->
+                <div class="example-panel active" id="beginner">
+                    <div class="example-header">
+                        <span class="skill-badge beginner">New to Minecraft?</span>
+                        <p>Simple requests anyone can use. No command knowledge needed!</p>
+                    </div>
+                    <div class="example-grid">
+                        <div class="example-card">
+                            <code>/chat give me a diamond sword</code>
+                            <span class="example-desc">Get basic items</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat make it daytime</code>
+                            <span class="example-desc">Change time of day</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat teleport me to spawn</code>
+                            <span class="example-desc">Fast travel</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat what biome am I in?</code>
+                            <span class="example-desc">Get location info</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat how do I make a crafting table?</code>
+                            <span class="example-desc">Learn recipes</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat heal me to full health</code>
+                            <span class="example-desc">Restore health</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat give me 64 steaks</code>
+                            <span class="example-desc">Food for survival</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat stop the rain</code>
+                            <span class="example-desc">Control weather</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Intermediate Examples -->
+                <div class="example-panel" id="intermediate">
+                    <div class="example-header">
+                        <span class="skill-badge intermediate">Know the Basics?</span>
+                        <p>Enchantments, positioning, and world manipulation.</p>
+                    </div>
+                    <div class="example-grid">
+                        <div class="example-card">
+                            <code>/chat give me a diamond sword with sharpness 5 and fire aspect 2</code>
+                            <span class="example-desc">Multiple enchantments</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat give me full netherite armor with protection 4</code>
+                            <span class="example-desc">Complete armor sets</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat teleport me to the nearest village</code>
+                            <span class="example-desc">Locate + teleport</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat spawn 10 cows near me</code>
+                            <span class="example-desc">Spawn entities</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat where is the nearest stronghold?</code>
+                            <span class="example-desc">Find structures</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat give me a bow with infinity and power 5</code>
+                            <span class="example-desc">Ranged weapons</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat fill a 10x10 area with diamond blocks</code>
+                            <span class="example-desc">World editing</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat set my gamemode to creative</code>
+                            <span class="example-desc">Mode switching</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Examples -->
+                <div class="example-panel" id="advanced">
+                    <div class="example-header">
+                        <span class="skill-badge advanced">Power User?</span>
+                        <p>Complex entity manipulation, multi-step operations, and world management.</p>
+                    </div>
+                    <div class="example-grid">
+                        <div class="example-card">
+                            <code>/chat kill all hostile mobs within 50 blocks</code>
+                            <span class="example-desc">Entity selectors</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat give me a trident with riptide 3, loyalty 3, and channeling</code>
+                            <span class="example-desc">Exclusive enchants</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat summon a charged creeper on top of me</code>
+                            <span class="example-desc">Special mob variants</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat replace all stone with air in a 20 block radius</code>
+                            <span class="example-desc">Mass block replacement</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat build a glass dome with 15 block radius centered on me</code>
+                            <span class="example-desc">Complex structures</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat give all players within 100 blocks speed 2 for 5 minutes</code>
+                            <span class="example-desc">Multi-player effects</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat tp me 1000 blocks in the direction I'm facing</code>
+                            <span class="example-desc">Relative positioning</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat summon 50 zombies in a circle around me</code>
+                            <span class="example-desc">Pattern spawning</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Developer Examples -->
+                <div class="example-panel" id="developer">
+                    <div class="example-header">
+                        <span class="skill-badge developer">Map Maker / Developer?</span>
+                        <p>Complex /execute chains, /data manipulation, NBT editing, and scoreboard logic.</p>
+                    </div>
+                    <div class="example-grid">
+                        <div class="example-card">
+                            <code>/chat execute at all players run summon lightning_bolt</code>
+                            <span class="example-desc">/execute chains</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat set the nearest villager's profession to librarian</code>
+                            <span class="example-desc">/data modify</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat give me a knockback 255 stick named "YEET Stick"</code>
+                            <span class="example-desc">Custom items</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat execute as all zombies at @s run tp @s ~ ~1 ~</code>
+                            <span class="example-desc">Entity manipulation</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat create a scoreboard objective called "kills" for player kills</code>
+                            <span class="example-desc">Scoreboard setup</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat summon an armor stand with custom name "Marker" that's invisible</code>
+                            <span class="example-desc">Marker entities</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat execute if score @s kills matches 10.. run give @s diamond 1</code>
+                            <span class="example-desc">Conditional logic</span>
+                        </div>
+                        <div class="example-card">
+                            <code>/chat give me a written book with title "Guide" and author "AI"</code>
+                            <span class="example-desc">Complex items</span>
+                        </div>
+                    </div>
+                    <div class="developer-note">
+                        <p>💡 <strong>Pro tip:</strong> AI uses modern 1.21.1 component syntax. It automatically
+                            converts your request to valid commands like <code>enchantments={levels:{...}}</code>
+                            instead of legacy NBT.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Commands Section -->
+    <section id="commands" class="commands">
+        <div class="container">
+            <div class="section-header">
+                <h2>All <span class="gradient-text">Commands</span></h2>
+                <p>Everything you need to know</p>
+            </div>
+
+            <div class="commands-tabs">
+                <button class="tab-btn active" data-tab="core">Core</button>
+                <button class="tab-btn" data-tab="config">Config</button>
+                <button class="tab-btn" data-tab="history">History</button>
+                <button class="tab-btn" data-tab="keys">API Keys</button>
+            </div>
+
+            <div class="commands-content">
+                <div class="tab-content active" id="core">
+                    <div class="command-item">
+                        <code>/chat &lt;text&gt;</code>
+                        <span>Talk to the AI</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chat clear</code>
+                        <span>Clear conversation history</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chat cancel</code>
+                        <span>Cancel current request</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chathelp</code>
+                        <span>Show all commands</span>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="config">
+                    <div class="command-item">
+                        <code>/chat config</code>
+                        <span>Interactive settings menu</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chatmodel flash|pro|auto</code>
+                        <span>Set AI model</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chatretries &lt;0-10&gt;</code>
+                        <span>Set retry limit</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chatsidebar on|off</code>
+                        <span>Toggle sidebar</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chatsounds on|off</code>
+                        <span>Toggle sounds</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chatparticles on|off|minimal</code>
+                        <span>Toggle particles</span>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="history">
+                    <div class="command-item">
+                        <code>/chat history</code>
+                        <span>Show last 5 exchanges</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chat history all</code>
+                        <span>Show full history</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chat export</code>
+                        <span>Export to TXT</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chat export all json</code>
+                        <span>Export all as JSON</span>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="keys">
+                    <div class="command-item">
+                        <code>/chatkey &lt;key&gt;</code>
+                        <span>Save your API key</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chatkey clear</code>
+                        <span>Remove your key</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chatkey default &lt;key&gt;</code>
+                        <span>Set server default</span>
+                    </div>
+                    <div class="command-item">
+                        <code>/chatkey info</code>
+                        <span>Show key sources</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Install Section -->
+    <section id="install" class="install">
+        <div class="container">
+            <div class="section-header">
+                <h2>Get <span class="gradient-text">Started</span></h2>
+                <p>Up and running in 3 steps</p>
+            </div>
+
+            <div class="install-steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Install Requirements</h3>
+                    <p>Get <a href="https://fabricmc.net/" target="_blank">Fabric Loader</a> and <a
+                            href="https://modrinth.com/mod/fabric-api" target="_blank">Fabric API</a> for Minecraft
+                        1.21.1</p>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Download the Mod</h3>
+                    <p>Get the JAR from CurseForge and put it in your <code>mods</code> folder</p>
+                    <a href="#" class="btn btn-primary download-btn">Download v1.0.0</a>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Set Your API Key</h3>
+                    <p>Get a free key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI
+                            Studio</a>, then run:</p>
+                    <code class="code-block">/chatkey YOUR_API_KEY_HERE</code>
+                </div>
+            </div>
+
+            <div class="install-cta">
+                <h3>🎮 Start chatting!</h3>
+                <code class="code-block">/chat give me a diamond sword with sharpness 5</code>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <span class="logo">🤖</span>
+                    <span>Gemini AI Chat</span>
+                </div>
+                <div class="footer-links">
+                    <a href="https://curseforge.com" target="_blank">CurseForge</a>
+                    <a href="https://modrinth.com" target="_blank">Modrinth</a>
+                    <a href="https://github.com" target="_blank">GitHub</a>
+                </div>
+                <div class="footer-legal">
+                    <p>CC0-1.0 License • Not affiliated with Mojang or Google</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
