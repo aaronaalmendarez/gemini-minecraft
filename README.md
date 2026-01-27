@@ -50,6 +50,24 @@ Gemini AI Companion isn't just a chatbot. It's a suite of integrated systems tha
 
 ---
 
+## 🖼️ Visual Exhibit
+
+<details>
+<summary><b>View Interface Screenshots</b></summary>
+
+<div align="center">
+<br>
+
+### *“Rainbow Thinking” Feedback Interface*
+The mod provides real-time, cinematic feedback via an animated action bar.
+
+![Thinking State](readme_resources/thinking.png)
+
+</div>
+</details>
+
+---
+
 ## 🚀 Getting Started
 
 ### 1. Prerequisites

@@ -11,6 +11,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -405,6 +406,7 @@ public class MyFirstFabricModClient implements ClientModInitializer {
 		private ButtonWidget retriesPlus;
 		private TextFieldWidget playerKeyField;
 		private TextFieldWidget serverKeyField;
+		private final List<ClickableWidget> baseWidgets = new ArrayList<>();
 		private final Map<ButtonWidget, ButtonStyle> buttonStyles = new HashMap<>();
 		private final List<ButtonWidget> micOptionButtons = new ArrayList<>();
 		private List<String> micDevices = new ArrayList<>();
@@ -429,28 +431,37 @@ public class MyFirstFabricModClient implements ClientModInitializer {
 			settingsHeaderY = row;
 			row += HEADER_HEIGHT + 6;
 			debugButton = addStyledButton(leftCol, row, "Debug", this::toggleDebug, ButtonStyle.TOGGLE_ON);
+			registerBaseWidget(debugButton);
 			sidebarButton = addStyledButton(rightCol, row, "Sidebar", this::toggleSidebar, ButtonStyle.TOGGLE_ON);
+			registerBaseWidget(sidebarButton);
 			row += 24;
 			soundsButton = addStyledButton(leftCol, row, "Sounds", this::toggleSounds, ButtonStyle.TOGGLE_ON);
+			registerBaseWidget(soundsButton);
 			particlesButton = addStyledButton(rightCol, row, "Particles", this::cycleParticles, ButtonStyle.ACTION);
+			registerBaseWidget(particlesButton);
 			row += 24;
 			voiceButton = addStyledButton(leftCol, row, "Voice", this::toggleVoice, ButtonStyle.TOGGLE_ON);
+			registerBaseWidget(voiceButton);
 			modelButton = addStyledButton(rightCol, row, "Model", this::cycleModel, ButtonStyle.ACTION);
+			registerBaseWidget(modelButton);
 			row += 24;
 			micButton = addStyledButton(rightCol, row, "Microphone", this::toggleMicDropdown, ButtonStyle.ACTION);
+			registerBaseWidget(micButton);
 			row += 24;
 			retriesRowY = row;
 			retriesMinus = addSmallStyledButton(panelX + PANEL_WIDTH / 2 - 52, row, SMALL_BUTTON_WIDTH, "-", () -> adjustRetries(-1), ButtonStyle.ACTION);
+			registerBaseWidget(retriesMinus);
 			retriesPlus = addSmallStyledButton(panelX + PANEL_WIDTH / 2 + 22, row, SMALL_BUTTON_WIDTH, "+", () -> adjustRetries(1), ButtonStyle.ACTION);
+			registerBaseWidget(retriesPlus);
 
 			row += SECTION_GAP;
 			actionsHeaderY = row;
 			row += HEADER_HEIGHT + 6;
-			addStyledButton(leftCol, row, "History", () -> sendCommand("/chat history"), ButtonStyle.ACTION);
-			addStyledButton(rightCol, row, "Export", () -> sendCommand("/chat export 5 txt"), ButtonStyle.ACTION);
+			registerBaseWidget(addStyledButton(leftCol, row, "History", () -> sendCommand("/chat history"), ButtonStyle.ACTION));
+			registerBaseWidget(addStyledButton(rightCol, row, "Export", () -> sendCommand("/chat export 5 txt"), ButtonStyle.ACTION));
 			row += 24;
-			addStyledButton(leftCol, row, "Smart Retry", () -> sendCommand("/chat smarter"), ButtonStyle.ACTION);
-			addStyledButton(rightCol, row, "Cancel", () -> sendCommand("/chat cancel"), ButtonStyle.DANGER);
+			registerBaseWidget(addStyledButton(leftCol, row, "Smart Retry", () -> sendCommand("/chat smarter"), ButtonStyle.ACTION));
+			registerBaseWidget(addStyledButton(rightCol, row, "Cancel", () -> sendCommand("/chat cancel"), ButtonStyle.DANGER));
 
 			row += SECTION_GAP;
 			keysHeaderY = row;
@@ -461,7 +472,8 @@ public class MyFirstFabricModClient implements ClientModInitializer {
 			playerKeyField.setMaxLength(128);
 			addSelectableChild(playerKeyField);
 			addDrawableChild(playerKeyField);
-			addSmallStyledButton(leftCol + fieldWidth + 8, row, SAVE_BUTTON_WIDTH, "Save", () -> saveKey(7, playerKeyField.getText()), ButtonStyle.ACTION);
+			registerBaseWidget(playerKeyField);
+			registerBaseWidget(addSmallStyledButton(leftCol + fieldWidth + 8, row, SAVE_BUTTON_WIDTH, "Save", () -> saveKey(7, playerKeyField.getText()), ButtonStyle.ACTION));
 
 			row += 24;
 			serverKeyField = new TextFieldWidget(this.textRenderer, leftCol, row, fieldWidth, BUTTON_HEIGHT, Text.literal("Server Key"));
@@ -469,12 +481,13 @@ public class MyFirstFabricModClient implements ClientModInitializer {
 			serverKeyField.setMaxLength(128);
 			addSelectableChild(serverKeyField);
 			addDrawableChild(serverKeyField);
-			addSmallStyledButton(leftCol + fieldWidth + 8, row, SAVE_BUTTON_WIDTH, "Save", () -> saveKey(8, serverKeyField.getText()), ButtonStyle.ACTION);
+			registerBaseWidget(serverKeyField);
+			registerBaseWidget(addSmallStyledButton(leftCol + fieldWidth + 8, row, SAVE_BUTTON_WIDTH, "Save", () -> saveKey(8, serverKeyField.getText()), ButtonStyle.ACTION));
 			keyStatusY = row + 24;
 
-			addDrawableChild(ButtonWidget.builder(Text.literal("Close"), button -> close())
+			registerBaseWidget(addDrawableChild(ButtonWidget.builder(Text.literal("Close"), button -> close())
 				.dimensions(panelX + (PANEL_WIDTH - BUTTON_WIDTH) / 2, panelY + PANEL_HEIGHT - 28, BUTTON_WIDTH, BUTTON_HEIGHT)
-				.build());
+				.build()));
 
 			requestSync();
 			refreshFromState();
@@ -571,8 +584,12 @@ public class MyFirstFabricModClient implements ClientModInitializer {
 			if (micDropdownOpen) {
 				refreshMicDevices();
 				buildMicDropdownButtons();
+				setBaseWidgetsVisible(false);
+				micButton.visible = true;
+				micButton.active = true;
 			} else {
 				hideMicDropdownButtons();
+				setBaseWidgetsVisible(true);
 			}
 		}
 
@@ -629,6 +646,7 @@ public class MyFirstFabricModClient implements ClientModInitializer {
 			showToast("Mic set");
 			micDropdownOpen = false;
 			hideMicDropdownButtons();
+			setBaseWidgetsVisible(true);
 			refreshFromState();
 		}
 
@@ -745,9 +763,27 @@ public class MyFirstFabricModClient implements ClientModInitializer {
 				if (!inside && !onMicButton) {
 					micDropdownOpen = false;
 					hideMicDropdownButtons();
+					setBaseWidgetsVisible(true);
 				}
 			}
 			return handled;
+		}
+
+		private void registerBaseWidget(ClickableWidget widget) {
+			if (widget == null) {
+				return;
+			}
+			baseWidgets.add(widget);
+		}
+
+		private void setBaseWidgetsVisible(boolean visible) {
+			for (ClickableWidget widget : baseWidgets) {
+				if (widget == micButton) {
+					continue;
+				}
+				widget.visible = visible;
+				widget.active = visible;
+			}
 		}
 
 		private String shortenLabel(String label, int max) {
