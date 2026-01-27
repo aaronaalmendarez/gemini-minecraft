@@ -1,4 +1,5 @@
 {
-  "key.categories.myfirstmod": "Gemini AI",
-  "key.myfirstmod.chat_config": "Open Chat AI Config"
+  "key.categories.gemini_ai_companion": "Gemini AI",
+  "key.gemini_ai_companion.chat_config": "Open Chat AI Config",
+  "key.gemini_ai_companion.push_to_talk": "Push To Talk (AI)"
 }

@@ -46,15 +46,15 @@
 <table align="center">
 <tr>
 <td align="center" width="25%">🗣️<br><b>Natural Language</b><br>Human-like interaction</td>
-<td align="center" width="25%">🧠<br><b>Multi-Mode AI</b><br>Ask, Plan, or Command</td>
-<td align="center" width="25%">🔄<br><b>Self-Healing</b><br>10-step auto-retry</td>
+<td align="center" width="25%">🧠<br><b>Recursive Reasoning</b><br>Self-reprompting chains</td>
+<td align="center" width="25%">🎙️<br><b>Voice Control</b><br>Real-time transcription</td>
 <td align="center" width="25%">🍳<br><b>Recipe Mastery</b><br>Crafting & Smelting</td>
 </tr>
 <tr>
 <td align="center" width="25%">🌐<br><b>Web Search</b><br>Google Search Grounding</td>
 <td align="center" width="25%">↩️<br><b>Undo Engine</b><br>Revert AI mutations</td>
 <td align="center" width="25%">💾<br><b>History</b><br>JSON/TXT Export support</td>
-<td align="center" width="25%">📦<br><b>Mod Integration</b><br>Full Registry Access</td>
+<td align="center" width="25%">🔄<br><b>Self-Healing</b><br>10-step auto-retry</td>
 </tr>
 </table>
 
@@ -66,13 +66,13 @@
 
 <table align="center">
 <tr>
-<td align="center" width="33%">🏰<br><b>Structure Detection</b><br>AI knows if you're in a Village, Stronghold, or Ancient City automatically.</td>
-<td align="center" width="33%">🍳<br><b>Recipe Fetching</b><br>Retrieves crafting & smelting paths for <b>any</b> item (Vanilla + Modded).</td>
-<td align="center" width="33%">💀<br><b>Death History</b><br>AI remembers where you died and can help you get back.</td>
+<td align="center" width="33%">🏰<br><b>Structure Detection</b><br>AI knows if you're in a Village, Stronghold, or Ancient City.</td>
+<td align="center" width="33%">🍳<br><b>Recipe Fetching</b><br>Retrieves crafting & smelting paths for <b>any</b> item.</td>
+<td align="center" width="33%">🎙️<br><b>Real-Time Voice</b><br>Transcribes audio clips into complex commands instantly.</td>
 </tr>
 <tr>
 <td align="center" width="33%">⛅<br><b>Environmental Sync</b><br>Aware of time, weather, and dimension without being asked.</td>
-<td align="center" width="33%">🎒<br><b>Selective Context</b><br>Inventory data is only sent when needed (crafting/tools).</td>
+<td align="center" width="33%">🔄<br><b>Recursive Chaining</b><br>AI reprompts itself to complete multi-step tasks (e.g. Locate -> Teleport).</td>
 <td align="center" width="33%">🔍<br><b>Registry Access</b><br>Deep scans of all modded items, blocks, and entity types.</td>
 </tr>
 </table>
@@ -136,7 +136,7 @@ This section documents the engineering techniques that enable seamless AI-to-gam
 ```mermaid
 graph TB
     subgraph Minecraft Server
-        A[Player Input<br>/chat command] --> B[Command Handler]
+        A[Player Input<br>/chat or Voice] --> B[Command Handler]
         B --> C{Parse Intent}
         C -->|Subcommand| D[Config/History/Export]
         C -->|AI Request| E[AiChatHandler]
@@ -154,6 +154,8 @@ graph TB
         F --> G[HTTP Thread Pool]
         G --> H[Gemini API]
         H --> I[Response Parser]
+        I --> I1[Voice Transcriber]
+        I1 --> E
     end
     
     subgraph Execution Engine
@@ -165,6 +167,8 @@ graph TB
         N -->|Success| O[Apply to World]
         N -->|Failure| P[Retry Loop]
         P --> H
+        O --> R1{Reprompt Needed?}
+        R1 -->|Yes| E
     end
     
     subgraph Persistence Layer
@@ -189,28 +193,25 @@ sequenceDiagram
     participant G as Gemini API
     participant W as Minecraft World
 
-    P->>M: /chat how to make diamond sword?
-    M->>R: Scan Recipes (Crafting/Smelting)
-    M->>R: Pull RegistryHints (Meta/NBT)
-    M->>M: Build context (History, Env, Registry)
-    M->>P: 🌈 "Thinking..." animation
-    M->>T: Async HTTP request
-    T->>G: POST /generateContent
-    G-->>T: JSON response
-    T->>M: Parse response
+    P->>M: 🎙️ Voice: "Where is the fortress?"
+    M->>T: Async Transcribe
+    T->>G: POST /audio (Base64)
+    G-->>T: "locate fortress"
+    T-->>M: Cleaned Transcript
     
-    alt Mode = COMMAND
-        M->>W: Execute /give command
-        W-->>M: Success/Failure
-        alt Failure
-            M->>G: Retry with error context
-            G-->>M: Fixed command
-            M->>W: Re-execute
-        end
-        M->>M: Push to undo stack
+    loop Recursive Reasoning
+        M->>R: Fetch context
+        M->>T: Request Action
+        T->>G: POST /chat
+        G-->>T: /locate fortress
+        T->>M: Command sequence
+        M->>W: execute /locate
+        W-->>M: "Fortress at 100, 64, -200"
+        M->>M: 🔄 Self-Reprompt with Output
     end
     
-    M->>P: Display detailed recipe + update sidebar
+    M->>W: execute /tp 100 64 -200
+    M->>P: "Found it! Teleporting you now."
 ```
 
 ### Self-Healing Command Retry

@@ -90,11 +90,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Base64;
 
 public class MyFirstFabricMod implements ModInitializer {
 public static final String MOD_ID = "gemini-ai-companion";
 	public static final Identifier CONFIG_PACKET_C2S = Identifier.of(MOD_ID, "config_c2s");
 	public static final Identifier CONFIG_PACKET_S2C = Identifier.of(MOD_ID, "config_s2c");
+	public static final Identifier AUDIO_PACKET_C2S = Identifier.of(MOD_ID, "audio_c2s");
 	private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 	private static final String API_KEY_ENV = "GEMINI_API_KEY";
 	private static final String GEMINI_ENDPOINT_BASE =
@@ -138,6 +140,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 	private static final int MIN_COMMAND_RETRIES = 0;
 	private static final int MAX_COMMAND_STEPS = 5;
 	private static final int SEARCH_ANIMATION_TICKS = 40;
+	private static final int MAX_VOICE_BYTES = 1_000_000;
 	private static final Set<UUID> COMMAND_DEBUG_ENABLED = ConcurrentHashMap.newKeySet();
 	private static final Map<UUID, Integer> COMMAND_RETRY_LIMITS = new ConcurrentHashMap<>();
 	private static final int MAX_CONTEXT_TOKENS = 16000;
@@ -409,8 +412,12 @@ public static final String MOD_ID = "gemini-ai-companion";
 		loadGlobalSettings();
 		PayloadTypeRegistry.playC2S().register(ConfigPayloadC2S.ID, ConfigPayloadC2S.CODEC);
 		PayloadTypeRegistry.playS2C().register(ConfigPayloadS2C.ID, ConfigPayloadS2C.CODEC);
+		PayloadTypeRegistry.playC2S().register(AudioPayloadC2S.ID, AudioPayloadC2S.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(ConfigPayloadC2S.ID, (payload, context) -> {
 			handleConfigPacket(context.server(), context.player(), payload.json());
+		});
+		ServerPlayNetworking.registerGlobalReceiver(AudioPayloadC2S.ID, (payload, context) -> {
+			context.server().execute(() -> handleVoicePayload(context.player(), payload));
 		});
 	}
 
@@ -444,6 +451,70 @@ public static final String MOD_ID = "gemini-ai-companion";
 		return 1;
 	}
 
+	private static void handleVoicePayload(ServerPlayerEntity player, AudioPayloadC2S payload) {
+		if (player == null) {
+			return;
+		}
+		String apiKey = resolveApiKey(player.getCommandSource());
+		if (apiKey == null || apiKey.isBlank()) {
+			player.sendMessage(Text.literal("No API key set. Use /chatkey <key> or /chatkey default <key>."), false);
+			return;
+		}
+		byte[] audio = payload.data();
+		if (audio == null || audio.length == 0) {
+			player.sendMessage(Text.literal("No audio received."), false);
+			return;
+		}
+		if (audio.length > MAX_VOICE_BYTES) {
+			player.sendMessage(Text.literal("Voice clip too large. Try a shorter clip."), false);
+			return;
+		}
+		THINKING_TICKS.put(player.getUuid(), 0);
+		registerRequest(player.getUuid());
+		sendCancelPrompt(player);
+		setStatus(player, "Transcribing voice...", Formatting.AQUA);
+		CompletableFuture<Void> future = CompletableFuture.runAsync(() -> handleVoiceFlow(player, apiKey, payload));
+		RequestState state = REQUEST_STATES.get(player.getUuid());
+		if (state != null) {
+			state.future = future;
+		}
+	}
+
+	private static void handleVoiceFlow(ServerPlayerEntity player, String apiKey, AudioPayloadC2S payload) {
+		RequestState state = REQUEST_STATES.get(player.getUuid());
+		if (state != null && state.cancelled.get()) {
+			return;
+		}
+		String transcript;
+		try {
+			transcript = callGeminiTranscribe(apiKey, payload.data(), payload.mimeType());
+		} catch (Exception e) {
+			player.getServer().execute(() -> {
+				player.sendMessage(Text.literal("Voice transcription failed: " + e.getMessage()), false);
+				THINKING_TICKS.remove(player.getUuid());
+				STATUS_STATE.remove(player.getUuid());
+			});
+			return;
+		}
+		if (state != null && state.cancelled.get()) {
+			return;
+		}
+		String cleaned = sanitizeTranscript(transcript);
+		if (cleaned.isBlank()) {
+			player.getServer().execute(() -> {
+				player.sendMessage(Text.literal("Could not hear any speech. Try again."), false);
+				THINKING_TICKS.remove(player.getUuid());
+				STATUS_STATE.remove(player.getUuid());
+			});
+			return;
+		}
+		LAST_PROMPT.put(player.getUuid(), cleaned);
+		player.getServer().execute(() -> player.sendMessage(Text.literal("You (voice): " + cleaned).formatted(Formatting.GRAY), false));
+		boolean inventoryQuery = isInventoryQuery(cleaned);
+		String contextSnapshot = buildContext(player.getCommandSource(), player, cleaned, inventoryQuery);
+		handleGeminiFlow(player.getCommandSource(), player, apiKey, cleaned, contextSnapshot, null);
+	}
+
 	private static boolean isInventoryQuery(String prompt) {
 		if (prompt == null || prompt.isBlank()) {
 			return false;
@@ -460,6 +531,46 @@ public static final String MOD_ID = "gemini-ai-companion";
 			"what do i have",
 			"items i have"
 		);
+	}
+
+	private static String selectAutoSkillCommand(String prompt, String replyMessage) {
+		String combined = (prompt == null ? "" : prompt) + " " + (replyMessage == null ? "" : replyMessage);
+		String lower = combined.toLowerCase(Locale.ROOT);
+		if (lower.isBlank()) {
+			return null;
+		}
+		if (lower.contains("need to check") || lower.contains("i should check") || lower.contains("let me check")
+			|| lower.contains("i will check") || lower.contains("i need to check")) {
+			if (lower.contains("armor") || lower.contains("enchant") || lower.contains("equipment") || lower.contains("gear")) {
+				return "chat skill inventory";
+			}
+			if (lower.contains("inventory") || lower.contains("items") || lower.contains("what do i have") || lower.contains("what's in")) {
+				return "chat skill inventory";
+			}
+			if (lower.contains("nearby") || lower.contains("around me") || lower.contains("entities")) {
+				return "chat skill nearby";
+			}
+			if (lower.contains("health") || lower.contains("hp") || lower.contains("status") || lower.contains("buff")) {
+				return "chat skill stats";
+			}
+			if (lower.contains("nbt") || lower.contains("components")) {
+				return "chat skill nbt mainhand";
+			}
+		}
+		if (isInventoryQuery(prompt)) {
+			return "chat skill inventory";
+		}
+		return null;
+	}
+
+	private static String stripSkillPrefix(String output) {
+		if (output == null) {
+			return "";
+		}
+		if (output.startsWith("SKILL:")) {
+			return output.substring(6).trim();
+		}
+		return output;
 	}
 
 	private static int rerunWithSmarterModel(ServerCommandSource source) {
@@ -1016,6 +1127,21 @@ public static final String MOD_ID = "gemini-ai-companion";
 		}
 	}
 
+	public record AudioPayloadC2S(String mimeType, byte[] data) implements CustomPayload {
+		public static final Id<AudioPayloadC2S> ID = new Id<>(AUDIO_PACKET_C2S);
+		public static final PacketCodec<RegistryByteBuf, AudioPayloadC2S> CODEC =
+			PacketCodec.tuple(
+				PacketCodecs.STRING, AudioPayloadC2S::mimeType,
+				PacketCodecs.BYTE_ARRAY, AudioPayloadC2S::data,
+				AudioPayloadC2S::new
+			);
+
+		@Override
+		public Id<? extends CustomPayload> getId() {
+			return ID;
+		}
+	}
+
 	private static int showChatHelp(ServerCommandSource source, String topic) {
 		if (topic == null || topic.isBlank()) {
 			source.sendFeedback(() -> Text.literal("Chat AI Help:"), false);
@@ -1124,6 +1250,20 @@ public static final String MOD_ID = "gemini-ai-companion";
 		ModeMessage reply = callGeminiSafely(apiKey, prompt, context, history, null, modelChoice);
 		if (state != null && state.cancelled.get()) {
 			return;
+		}
+
+		if (player != null && reply.commands.isEmpty()) {
+			String autoSkill = selectAutoSkillCommand(prompt, reply.message);
+			if (autoSkill != null) {
+				setStatus(player, "Gathering data...", Formatting.AQUA);
+				String skillOutput = executeSkillCommand(player, autoSkill, true);
+				String cleaned = stripSkillPrefix(skillOutput);
+				String skillContext = "Skill output: " + cleaned + "\nContinue the task using this data. Respond with JSON only.";
+				reply = callGeminiSafely(apiKey, prompt, context, history, skillContext, modelChoice);
+				if (state != null && state.cancelled.get()) {
+					return;
+				}
+			}
 		}
 
 		if ("PLAN".equals(reply.mode) && player != null) {
@@ -2109,6 +2249,79 @@ public static final String MOD_ID = "gemini-ai-companion";
 		String raw = firstPart.get("text").getAsString();
 		SearchMetadata search = parseSearchMetadata(first);
 		return parseModeMessage(raw, search.used, search.sources);
+	}
+
+	private static String callGeminiTranscribe(String apiKey, byte[] audioBytes, String mimeType) throws Exception {
+		JsonObject request = new JsonObject();
+		JsonArray contents = new JsonArray();
+		JsonObject content = new JsonObject();
+		content.addProperty("role", "user");
+		JsonArray parts = new JsonArray();
+		JsonObject audioPart = new JsonObject();
+		JsonObject inlineData = new JsonObject();
+		inlineData.addProperty("mime_type", mimeType == null || mimeType.isBlank() ? "audio/wav" : mimeType);
+		inlineData.addProperty("data", Base64.getEncoder().encodeToString(audioBytes));
+		audioPart.add("inline_data", inlineData);
+		parts.add(audioPart);
+		JsonObject promptPart = new JsonObject();
+		promptPart.addProperty("text", "Transcribe the speech to plain text. Return only the transcript.");
+		parts.add(promptPart);
+		content.add("parts", parts);
+		contents.add(content);
+		request.add("contents", contents);
+
+		JsonObject generationConfig = new JsonObject();
+		JsonObject thinkingConfig = new JsonObject();
+		thinkingConfig.addProperty("thinkingLevel", "minimal");
+		generationConfig.add("thinkingConfig", thinkingConfig);
+		request.add("generationConfig", generationConfig);
+
+		String body = GSON.toJson(request);
+		String modelId = ModelChoice.FLASH.modelId;
+		HttpRequest httpRequest = HttpRequest.newBuilder()
+			.uri(URI.create(GEMINI_ENDPOINT_BASE + modelId + ":generateContent?key=" + apiKey))
+			.header("Content-Type", "application/json; charset=utf-8")
+			.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+			.build();
+
+		HttpResponse<String> response = HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+		if (response.statusCode() < 200 || response.statusCode() >= 300) {
+			throw new IllegalStateException("HTTP " + response.statusCode());
+		}
+
+		JsonObject json = GSON.fromJson(response.body(), JsonObject.class);
+		JsonArray candidates = json.getAsJsonArray("candidates");
+		if (candidates == null || candidates.isEmpty()) {
+			return "";
+		}
+		JsonObject first = candidates.get(0).getAsJsonObject();
+		JsonObject responseContent = first.getAsJsonObject("content");
+		if (responseContent == null) {
+			return "";
+		}
+		JsonArray responseParts = responseContent.getAsJsonArray("parts");
+		if (responseParts == null || responseParts.isEmpty()) {
+			return "";
+		}
+		JsonObject firstPart = responseParts.get(0).getAsJsonObject();
+		if (!firstPart.has("text")) {
+			return "";
+		}
+		return firstPart.get("text").getAsString();
+	}
+
+	private static String sanitizeTranscript(String transcript) {
+		if (transcript == null) {
+			return "";
+		}
+		String cleaned = transcript.replace('\n', ' ').replace('\r', ' ').trim();
+		while (cleaned.contains("  ")) {
+			cleaned = cleaned.replace("  ", " ");
+		}
+		if (cleaned.startsWith("\"") && cleaned.endsWith("\"") && cleaned.length() > 1) {
+			cleaned = cleaned.substring(1, cleaned.length() - 1).trim();
+		}
+		return cleaned;
 	}
 
 	private static ModeMessage parseModeMessage(String raw, boolean searchUsed, List<SourceLink> sources) {
