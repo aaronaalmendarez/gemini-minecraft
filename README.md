@@ -60,9 +60,7 @@
 </tr>
 </table>
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" />
-</p>
+<br>
 
 <h2 align="center">🧠 Smart Context Awareness</h2>
 
@@ -95,9 +93,7 @@
 2.  Set your key via `/chatkey <YOUR_KEY>`.
 3.  Type `/chat` to begin the future.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" />
-</p>
+<br>
 
 <h2 align="center">💬 Core Commands</h2>
 
@@ -107,6 +103,19 @@
 | `/chat undo`        | Safety net for when AI goes "too far".                  |
 | `/chat smarter`     | Escalates logic to the **Pro** model for complex tasks. |
 | `/chat skill <...>` | Injects world context (inventory, entities, stats).     |
+
+<h2 align="center">📦 Modpack & Cross-Mod Integration</h2>
+
+<p align="center">
+  Built for complexity. Gemini doesn't just know Vanilla — it scans your entire game state.
+</p>
+
+<table align="center">
+<tr>
+<td align="center" width="50%">🔍<br><b>Registry Scanning</b><br>AI automatically discovers items, blocks, and entities from <b>any mod</b> in your pack via <i>RegistryHints</i>.</td>
+<td align="center" width="50%">🛠️<br><b>Modpack Addon</b><br>Perfect for quest-heavy packs. AI can explain <i>any</i> modded item or suggest recipes for complex machines.</td>
+</tr>
+</table>
 
 <h2 align="center">🛣️ Project Roadmap</h2>
 
