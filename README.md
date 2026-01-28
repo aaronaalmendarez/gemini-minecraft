@@ -8,7 +8,7 @@
 [![Minecraft 1.21.1](https://img.shields.io/badge/Minecraft-1.21.1-blue?style=for-the-badge&logo=minecraft)](https://www.minecraft.net/)
 [![Fabric](https://img.shields.io/badge/Fabric-Loader-9c8a7b?style=for-the-badge&logo=fabric)](https://fabricmc.net/)
 [![Gemini 3.0](https://img.shields.io/badge/Power-Gemini_3.0-orange?style=for-the-badge&logo=google-gemini)](https://deepmind.google/technologies/gemini/)
-[![Official Release](https://img.shields.io/badge/Release-v1.0.0_Official-purple?style=for-the-badge)](https://github.com/aaronaalmendarez/gemini-minecraft/releases/tag/v1.0.0)
+[![Official Release](https://img.shields.io/badge/Release-v1.0.1_Official-purple?style=for-the-badge)](https://github.com/aaronaalmendarez/gemini-minecraft/releases/tag/v1.0.1)
 [![MIT License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 [**Quick Start**](#-getting-started) • [**Features**](#-pillars-of-intelligence) • [**Roadmap**](#-roadmap) • [**Commands**](#-command-terminal) • [**Technical Specs**](#-the-nerd-stack)
@@ -23,7 +23,7 @@
 
 ## ⚡ Quick Try
 
-1.  **Download** the latest release: [**v1.0.0 JAR**](https://github.com/aaronaalmendarez/gemini-minecraft/releases/tag/v1.0.0)
+1.  **Download** the latest release: [**v1.0.1 JAR**](https://github.com/aaronaalmendarez/gemini-minecraft/releases/tag/v1.0.1)
 2.  Drop the `.jar` into your **`mods`** folder.
 3.  Launch with **Fabric 1.21.1**.
 4.  **Experience the Power**:
