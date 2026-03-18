@@ -7,7 +7,7 @@
 
 [![Minecraft 1.21.1](https://img.shields.io/badge/Minecraft-1.21.1-blue?style=for-the-badge&logo=minecraft)](https://www.minecraft.net/)
 [![Fabric](https://img.shields.io/badge/Fabric-Loader-9c8a7b?style=for-the-badge&logo=fabric)](https://fabricmc.net/)
-[![Gemini 3.0](https://img.shields.io/badge/Power-Gemini_3.0-orange?style=for-the-badge&logo=google-gemini)](https://deepmind.google/technologies/gemini/)
+[![Gemini 3.1 Pro Preview](https://img.shields.io/badge/Power-Gemini_3.1_Pro_Preview-orange?style=for-the-badge&logo=google-gemini)](https://deepmind.google/technologies/gemini/)
 [![Official Release](https://img.shields.io/badge/Release-v1.1.0_Orchestration-purple?style=for-the-badge)](https://github.com/aaronaalmendarez/gemini-minecraft/releases/tag/v1.1.0)
 [![MIT License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
@@ -16,6 +16,8 @@
 ---
 
 ### *“The first AI that doesn't just talk to you—it lives in your world.”*
+
+### *Now featuring a structured voxel architect with phased builds, terrain-aware planning, undo snapshots, and self-repairing build execution.*
 
 ![Demo](readme_resources/demo.gif)
 
@@ -67,6 +69,15 @@ Gemini AI Companion isn't just a chatbot. It's a suite of integrated systems tha
 - **Registry Scanner**: Automatically discovers items, blocks, and entity types from your entire modpack via RegistryHints.
 - **Undo Engine**: Every AI-driven world mutation can be reverted instantly if it doesn't meet your vision.
 
+### 🧱 Voxel Architect (NEW)
+*A real structured build harness instead of fragile one-shot command spam.*
+- **Structured `build_plan` Pipeline**: The AI describes builds as cuboids, block placements, palettes, rotations, and phased `steps[]` plans instead of dumping brittle raw command walls.
+- **Terrain-Aware Site Scanning**: `buildsite` summaries give the model relative terrain shape, headroom, and surface composition before it commits to a house, tower, shrine, or room.
+- **Phased Construction**: Large builds can decompose into foundation, walls, roof, detail, and redstone stages for better reliability and cleaner retries.
+- **Safety Envelope**: Volume budgets, coordinate clamps, registry/state validation, and smarter support checks keep builds controlled and server-safe.
+- **Auto-Repairing Execution**: The planner can normalize bad states, expand doors/beds, add support pillars when a build is almost right, and retry with structured error feedback when it is not.
+- **World-Safe Undo**: Structured builds snapshot terrain and block-entity state so `/chat undo` can roll back the result instead of leaving permanent scars.
+
 ### 👁️ Agentic Vision (NEW)
 *Image understanding as an active investigation.*
 - **Think, Act, Observe Loop**: The model doesn't just "see" a static frame. it formulates plans to inspect specific screen regions and ground responses in visual evidence.
@@ -96,13 +107,18 @@ Stop thinking of it as a "chatbot." Start thinking of it as your **Second Pilot*
 >
 > **Gemini:** *Analyzes location* → Executes `/fill` for the foundation → `/setblock` for walls/roof → `/give @p torch 16` → "Construction complete, and I've provided lighting for your safety."
 
-#### 🧠 Scenario B: The Recursive Scout
+#### 🧱 Scenario B: The Structured Builder
+> **You:** "Build me a small oak cabin here with a door, bed, and a little roof overhang."
+>
+> **Gemini:** Scans the local site → emits a structured `build_plan` with cuboids, block placements, rotation, and phased steps → planner validates/repairs it → compiles it into safe `fill`/`setblock` commands → snapshots the terrain for undo → builds the cabin.
+
+#### 🧠 Scenario C: The Recursive Scout
 > **You:** "I'm lost. Find me a village, take me there, and set my spawn."
 >
 > **Gemini:** Executes `/locate structure village` → Parses coordinates → Executes `/tp` → Executes `/spawnpoint` → "Welcome to the village. Your spawn is secured."
 
 <details>
-<summary><b>Scenario C: The Self-Healing Engineer</b></summary>
+<summary><b>Scenario D: The Self-Healing Engineer</b></summary>
 
 > **You:** "Give me a sword with level 10 Sharpness."
 >
@@ -110,7 +126,7 @@ Stop thinking of it as a "chatbot." Start thinking of it as your **Second Pilot*
 
 </details>
 
-#### 📍 Scenario F: 3D Pointing (v1.1.0)
+#### 📍 Scenario E: 3D Pointing (v1.1.0)
 > **You:** "Where is the nearest diamond ore?"
 > 
 > > [!TIP]
@@ -184,6 +200,24 @@ Gemini AI Companion features a built-in **Push-to-Talk** system for true hands-f
 | `/chat undo`       | **Rollback** the last set of AI-executed commands.                   |
 | `/chat history`    | Browse previous exchanges in an interactive menu.                    |
 | `/chat config`     | Deep-dive into debug mode, sidebar toggles, and retry limits.        |
+
+### 🧱 Build Planning Flow
+
+When you ask for a structure, the mod can now run a proper build loop:
+
+1. Scan the site with `chat skill buildsite <radius>` when terrain context matters.
+2. Ask the model for a structured `build_plan` instead of raw command spam.
+3. Validate blocks, states, volume, coordinates, supports, and rotations.
+4. Auto-repair near-miss issues like bad block states or missing support pillars.
+5. Compile to safe Minecraft commands and snapshot the world for `/chat undo`.
+
+This is what makes prompts like:
+
+> *“Build me a little house here”*  
+> *“Make a compact furnace shed next to me”*  
+> *“Build a watchtower with a stone base and wood roof”*
+
+feel reliable instead of random.
 
 ---
 

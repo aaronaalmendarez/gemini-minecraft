@@ -66,6 +66,7 @@ import net.minecraft.recipe.Ingredient;
 import net.minecraft.world.gen.StructureAccessor;
 import net.minecraft.world.gen.structure.Structure;
 import net.minecraft.world.GameRules;
+import net.minecraft.world.World;
 import net.minecraft.util.Identifier;
 import net.minecraft.nbt.NbtCompound;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -126,8 +127,15 @@ public static final String MOD_ID = "gemini-ai-companion";
 		"https://generativelanguage.googleapis.com/v1beta/models/";
 	private static final String SYSTEM_PROMPT =
 		"You are an assistant inside Minecraft. Classify the user's request into one mode: ASK, PLAN, COMMAND, CONTINUE, or TOOL. " +
-		"Return a JSON object with fields: mode (ASK|PLAN|COMMAND|CONTINUE|TOOL), message (plain text), and commands (array). " +
-		"For COMMAND mode, include one or more Minecraft commands in commands. For other modes, use an empty array. " +
+		"Return a JSON object with fields: mode (ASK|PLAN|COMMAND|CONTINUE|TOOL), message (plain text), commands (array), and optional build_plan (object) and optional highlights (array). " +
+		"For COMMAND mode, include one or more Minecraft commands in commands, or include build_plan, or include both. For other modes, use an empty commands array and omit build_plan. " +
+		"If you use build_plan, prefer commands=[] unless you truly need extra direct commands outside the structure build. " +
+		"Use build_plan for structures, buildings, blocky sculptures, interiors, or any multi-block voxel output. Prefer build_plan over long raw setblock/fill command lists. " +
+		"build_plan coordinates are RELATIVE to the player's block position where x=0,y=0,z=0. Positive x=east, positive y=up, positive z=south. " +
+		"build_plan may include palette, clear, cuboids, blocks, optional steps, and optional rotate (0|90|180|270 or cw/ccw). cuboids use from/to OR start+size OR location+size plus block/material and optional fill=hollow|outline|solid or hollow:true. blocks use pos plus block/material and optional properties/state. steps is an array of phased sub-plans such as foundation, walls, roof, details, or redstone. " +
+		"Valid cuboid example: build_plan={summary:\"Small rotated hut\",rotate:90,palette:{\"custom\":\"yourmod:ore\"},cuboids:[{name:\"floor\",block:\"oak_planks\",from:{x:0,y:0,z:0},to:{x:4,y:0,z:4}},{name:\"walls\",block:\"oak_planks\",start:{x:0,y:1,z:0},size:{x:5,y:3,z:5},hollow:true}],blocks:[{name:\"door\",block:\"oak_door\",pos:{x:2,y:1,z:0},properties:{facing:\"south\"}}]}. " +
+		"For larger or terrain-sensitive builds, prefer steps with an explicit foundation phase before walls or roof. " +
+		"Do not invent unsupported shape DSLs or prose-only plans. If you use build_plan, include at least one valid cuboid, block, or clear volume. " +
 		"For CONTINUE, return the next step needed to finish the task; do not include commands. " +
 		"For multi-step tasks that require iterative steps (e.g. scanning, gathering, crafting), prefer CONTINUE with the next step. " +
 		"For TOOL mode, put skill commands in commands (e.g. chat skill inventory). The system will execute them and provide outputs; then answer in ASK/PLAN/COMMAND. " +
@@ -140,15 +148,19 @@ public static final String MOD_ID = "gemini-ai-companion";
 		"If you are unsure about the player's items or equipment, proactively issue /chat skill inventory before answering. " +
 		"If you need extra data, you may issue skill commands in commands exactly like a normal command (no leading slash). " +
 		"Skill usage examples: chat skill inventory; chat skill nearby; chat skill stats; chat skill players; chat skill settings; " +
+		"chat skill buildsite 16; " +
 		"chat skill settings video; chat skill settings controls; chat skill lookup mainhand; chat skill lookup slot 4; " +
 		"chat skill nbt mainhand; chat skill nbt slot 7; chat skill blocks minecraft:diamond_ore 32; " +
 		"chat skill blocks #minecraft:logs 24; chat skill containers 32; chat skill containers minecraft:barrel 24; " +
 		"chat skill blockdata 12 64 -30; chat skill blockdata nearest minecraft:chest 24; chat skill blockdata minecraft:chest nearest 24; " +
 		"chat skill recipe minecraft:hopper; chat skill smelt minecraft:raw_iron. " +
 		"When you receive skill output, treat it as trusted context and answer directly using it. You do not need to repeat the full data, only relevant parts. " +
+		"For direct world-edit requests like build, place, construct, spawn, fill, setblock, or create, do NOT search inventory, containers, or materials unless the user explicitly asks for a survival-friendly, gathered, craftable, or inventory-limited solution. In those cases, prefer COMMAND with build_plan or direct commands. " +
+		"If you already have enough information to complete a build request, return COMMAND immediately. Do not ask for confirmation after you can already perform the build, and do not switch back to ASK for the same build unless execution failed or the user explicitly asked for options first. " +
 		"If a user asks about what is inside a chest/container, always use chat skill blockdata nearest minecraft:chest <radius> first. " +
 		"If a user asks where a chest/container is, use chat skill containers <radius> and then highlight the nearest match. " +
 		"If a user asks to highlight/find a block or ore, use chat skill blocks <block or #tag> <radius>. " +
+		"For terrain-sensitive or larger structures, prefer TOOL mode with chat skill buildsite <radius> before returning COMMAND mode with build_plan. For small known builds like shrines, huts, statues, pillars, or simple rooms, skip buildsite unless the user asks you to fit the terrain or choose a location. " +
 		"To change client settings or keybinds, use /chat setsetting <key> <value> and wait for the confirmation prompt. " +
 		"Do NOT use any /options command. " +
 		"chat skill recipe <item> returns all matching recipes across vanilla and modded recipe types with ingredients. " +
@@ -169,7 +181,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 	private static final Map<UUID, List<ChatTurn>> CHAT_HISTORY = new ConcurrentHashMap<>();
 	private static final Map<UUID, String> API_KEYS = new ConcurrentHashMap<>();
 	private static final Map<UUID, List<DeathRecord>> DEATHS = new ConcurrentHashMap<>();
-	private static final Map<UUID, List<String>> LAST_UNDO_COMMANDS = new ConcurrentHashMap<>();
+	private static final Map<UUID, UndoBatch> LAST_UNDO_BATCHES = new ConcurrentHashMap<>();
 	private static final Map<UUID, String> LAST_PROMPT = new ConcurrentHashMap<>();
 	private static final Map<UUID, RequestState> REQUEST_STATES = new ConcurrentHashMap<>();
 	private static final Map<UUID, VisionRequest> PENDING_VISION = new ConcurrentHashMap<>();
@@ -204,6 +216,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 	private static final int MAX_CONTAINER_RESULTS = 8;
 	private static final int MAX_CONTINUE_STEPS = 5;
 	private static final int MAX_TOOL_STEPS = 4;
+	private static final int MAX_UNDO_SNAPSHOT_BLOCKS = 65_536;
 	private static final int HISTORY_EXCHANGES_PER_PAGE = 3;
 	private static final boolean SIDEBAR_DEFAULT_ENABLED = true;
 	private static boolean SIDEBAR_ENABLED = SIDEBAR_DEFAULT_ENABLED;
@@ -338,6 +351,13 @@ public static final String MOD_ID = "gemini-ai-companion";
 						.executes(context -> runChatSkill(context.getSource(), "players", null)))
 					.then(CommandManager.literal("stats")
 						.executes(context -> runChatSkill(context.getSource(), "stats", null)))
+					.then(CommandManager.literal("buildsite")
+						.executes(context -> runChatSkill(context.getSource(), "buildsite", null))
+						.then(CommandManager.argument("radius", IntegerArgumentType.integer(4))
+							.executes(context -> runChatSkill(
+								context.getSource(),
+								"buildsite",
+								String.valueOf(IntegerArgumentType.getInteger(context, "radius"))))))
 					.then(CommandManager.literal("settings")
 						.executes(context -> runChatSkill(context.getSource(), "settings", null))
 						.then(CommandManager.argument("category", StringArgumentType.word())
@@ -900,7 +920,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 			setStatus(player, "Iterating on the plan...", Formatting.AQUA);
 			planAlreadySent[0] = true;
 			String planInstruction =
-				"Convert the plan above into COMMAND mode. Return mode COMMAND, message \"Initiating plan.\", and commands array only. " +
+				"Convert the plan above into COMMAND mode. Return mode COMMAND, message \"Initiating plan.\", and include commands, build_plan, or both. " +
 				"Plan: " + reply.message;
 			ModeMessage planCommands = callGeminiSafely(request.apiKey, prompt, context, history, planInstruction, modelChoice);
 			if ("COMMAND".equals(planCommands.mode)) {
@@ -928,7 +948,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 				MODE_STATE.put(player.getUuid(), new ModeState(modeLabel(finalReply.mode), modeColor(finalReply.mode), 60));
 			}
 			ModeMessage displayReply = finalReply;
-			if ("COMMAND".equals(displayReply.mode) && filterExecutableCommands(displayReply.commands, player).isEmpty()) {
+			if ("COMMAND".equals(displayReply.mode) && !hasActionPayload(displayReply, player)) {
 				displayReply = new ModeMessage("ASK", displayReply.message, List.of(), displayReply.searchUsed, displayReply.sources, displayReply.highlights);
 			}
 			AiStats statsDone = getStats(player.getUuid());
@@ -2006,7 +2026,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			source.sendFeedback(() -> Text.literal("/chat history [count|all] [page] - Show recent exchanges."), false);
 			source.sendFeedback(() -> Text.literal("/chat export [count|all] [txt|json] - Save chat log."), false);
 			source.sendFeedback(() -> Text.literal("/chat config - Show settings menu."), false);
-			source.sendFeedback(() -> Text.literal("/chat skill <inventory|nearby|blocks|containers|blockdata|players|stats|lookup|nbt|recipe|smelt> - Run a skill."), false);
+			source.sendFeedback(() -> Text.literal("/chat skill <inventory|nearby|blocks|containers|blockdata|players|stats|buildsite|lookup|nbt|recipe|smelt> - Run a skill."), false);
 			source.sendFeedback(() -> Text.literal("/chatdebug on|off - Show executed commands/output."), false);
 			source.sendFeedback(() -> Text.literal("/chatsidebar on|off - Toggle the sidebar stats."), false);
 			source.sendFeedback(() -> Text.literal("/chatsounds on|off - Toggle AI sounds."), false);
@@ -2062,6 +2082,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 				source.sendFeedback(() -> Text.literal("/chat skill players - List online players with coords."), false);
 				source.sendFeedback(() -> Text.literal("/chat skill settings [video|controls|all] - Read full options + keybinds."), false);
 				source.sendFeedback(() -> Text.literal("/chat skill stats - Show health, armor, buffs, XP."), false);
+				source.sendFeedback(() -> Text.literal("/chat skill buildsite [radius] - Summarize local terrain for structured builds."), false);
 				source.sendFeedback(() -> Text.literal("/chat skill lookup <mainhand|offhand|slot N> - Item tooltip analysis."), false);
 				source.sendFeedback(() -> Text.literal("/chat skill nbt <mainhand|offhand|slot N> - Inspect components."), false);
 				source.sendFeedback(() -> Text.literal("/chat skill recipe <item> | /chat skill smelt <item> - Find recipes."), false);
@@ -2172,7 +2193,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			setStatus(player, "Iterating on the plan...", Formatting.AQUA);
 			planAlreadySent[0] = true;
 			String planInstruction =
-				"Convert the plan above into COMMAND mode. Return mode COMMAND, message \"Initiating plan.\", and commands array only. " +
+				"Convert the plan above into COMMAND mode. Return mode COMMAND, message \"Initiating plan.\", and include commands, build_plan, or both. " +
 				"Plan: " + reply.message;
 			ModeMessage planCommands = callGeminiSafely(apiKey, prompt, context, history, planInstruction, modelChoice);
 			if ("COMMAND".equals(planCommands.mode)) {
@@ -2190,7 +2211,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		ModeMessage finalReply = reply;
 		ModeMessage displayReply = finalReply;
 		if (player != null && "COMMAND".equals(displayReply.mode)
-			&& filterExecutableCommands(displayReply.commands, player).isEmpty()) {
+			&& !hasActionPayload(displayReply, player)) {
 			displayReply = new ModeMessage("ASK", displayReply.message, List.of(), displayReply.searchUsed, displayReply.sources, displayReply.highlights);
 		}
 		ModeMessage finalDisplayReply = displayReply;
@@ -2321,6 +2342,16 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		return COMMAND_RETRY_LIMITS.getOrDefault(player.getUuid(), DEFAULT_COMMAND_RETRIES);
 	}
 
+	private static boolean hasActionPayload(ModeMessage message, ServerPlayerEntity player) {
+		if (message == null) {
+			return false;
+		}
+		if (message.buildPlan() != null) {
+			return true;
+		}
+		return !filterExecutableCommands(message.commands, player).isEmpty();
+	}
+
 	private static ModeMessage handleCommandMode(
 		ServerCommandSource source,
 		ServerPlayerEntity player,
@@ -2332,12 +2363,38 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		ModelChoice modelChoice
 	) {
 		ModeMessage current = initial;
-		String lastSkillOutput = null;
 		int steps = 0;
 		int retryLimit = getRetryLimit(player);
 		for (int attempt = 1; attempt <= retryLimit; attempt++) {
 			setRetryStats(player, attempt - 1);
-			List<String> executableCommands = filterExecutableCommands(current.commands, player);
+			List<String> executableCommands = new ArrayList<>();
+			VoxelBuildPlanner.CompiledBuild compiledBuild = null;
+			if (current.buildPlan() != null) {
+				compiledBuild = VoxelBuildPlanner.compile(player, current.buildPlan());
+				if (!compiledBuild.valid()) {
+					if (attempt == retryLimit) {
+						LOGGER.info("AI build retry exhausted for player {}. Errors: {}", player.getName().getString(), compiledBuild.error());
+						return new ModeMessage("COMMAND", "AI could not produce a valid structured build after several tries.", List.of(), false, List.of(), List.of());
+					}
+					LOGGER.info("AI build retry {}/{} for player {}. Errors: {}", attempt, retryLimit, player.getName().getString(), compiledBuild.error());
+					setStatus(player, "AI encountered a build-plan error, retrying (" + attempt + "/" + retryLimit + ")...", Formatting.RED);
+					String repairContext = compiledBuild.repairs().isEmpty() ? "" : " Repairs: " + String.join(" | ", compiledBuild.repairs());
+						String schemaHint =
+							" Supported build_plan schema: " +
+							"cuboids:[{block:\"oak_planks\",from:{x:0,y:0,z:0},to:{x:4,y:2,z:4}}] or " +
+							"cuboids:[{block:\"oak_planks\",location:{x:0,y:0,z:0},size:{x:5,y:3,z:5},fill:\"hollow\"}] or " +
+							"blocks:[{block:\"oak_door\",pos:{x:2,y:1,z:0},properties:{facing:\"south\"}}] or " +
+							"steps:[{phase:\"foundation\",plan:{cuboids:[{block:\"stone_bricks\",from:{x:0,y:0,z:0},to:{x:4,y:0,z:4}}]}},{phase:\"walls\",plan:{cuboids:[{block:\"oak_planks\",start:{x:0,y:1,z:0},size:{x:5,y:3,z:5},hollow:true}]}}].";
+					String errorContext = "Build plan errors: " + compiledBuild.error() + repairContext + schemaHint;
+					current = callGeminiSafely(apiKey, prompt, context, history, errorContext, modelChoice);
+					if (!"COMMAND".equals(current.mode)) {
+						return current;
+					}
+					continue;
+				}
+				executableCommands.addAll(compiledBuild.commands());
+			}
+			executableCommands.addAll(filterExecutableCommands(current.commands, player));
 			if (executableCommands.isEmpty()) {
 				return new ModeMessage("ASK", current.message, List.of(), current.searchUsed, current.sources, current.highlights);
 			}
@@ -2366,8 +2423,8 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 				updateSidebar(player, stats);
 			}
 			if (result.success) {
-				if (!prepared.undoCommands.isEmpty()) {
-					LAST_UNDO_COMMANDS.put(player.getUuid(), prepared.undoCommands);
+				if (!prepared.undoCommands.isEmpty() || !prepared.undoSnapshots.isEmpty()) {
+					LAST_UNDO_BATCHES.put(player.getUuid(), new UndoBatch(prepared.undoCommands, prepared.undoSnapshots));
 				}
 				steps++;
 				if (shouldContinueAfterOutput(prepared.executeCommands, result.outputs) && steps < MAX_COMMAND_STEPS) {
@@ -2382,7 +2439,20 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 				}
 
 				setRetryStats(player, 0);
-				return current;
+				String replyMessage = current.message;
+				if ((replyMessage == null || replyMessage.isBlank() || "Executing commands.".equals(replyMessage))
+					&& compiledBuild != null && compiledBuild.summary() != null && !compiledBuild.summary().isBlank()) {
+					replyMessage = compiledBuild.summary();
+				}
+				return new ModeMessage(
+					current.mode,
+					replyMessage,
+					executableCommands,
+					current.searchUsed,
+					current.sources,
+					current.highlights,
+					current.buildPlan()
+				);
 			}
 
 			if (attempt == retryLimit) {
@@ -2398,10 +2468,6 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 				return current;
 			}
 		}
-
-		if (lastSkillOutput != null && !lastSkillOutput.isBlank()) {
-			return new ModeMessage("ASK", lastSkillOutput, List.of(), current.searchUsed, current.sources, current.highlights);
-		}
 		return current;
 	}
 
@@ -2416,6 +2482,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 	) {
 		ModeMessage current = initial;
 		int steps = 0;
+		Set<String> seenToolBatches = new java.util.HashSet<>();
 		while ("TOOL".equals(current.mode) && steps < MAX_TOOL_STEPS) {
 			steps++;
 			if (player == null) {
@@ -2423,6 +2490,24 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			}
 			if (current.commands == null || current.commands.isEmpty()) {
 				return new ModeMessage("ASK", "No tool commands provided.", List.of(), current.searchUsed, current.sources, current.highlights);
+			}
+			List<String> normalizedCommands = new ArrayList<>();
+			for (String raw : current.commands) {
+				String normalized = normalizeToolCommand(raw);
+				if (normalized != null && !normalized.isBlank()) {
+					normalizedCommands.add(normalized);
+				}
+			}
+			String batchSignature = String.join(" | ", normalizedCommands);
+			if (!batchSignature.isBlank() && !seenToolBatches.add(batchSignature)) {
+				String duplicateContext =
+					"Tool commands already executed in this request: " + batchSignature + ". " +
+					"Do not request the same tools again. Use the existing tool results and respond with ASK, PLAN, or COMMAND.";
+				current = callGeminiSafely(apiKey, prompt, context, history, duplicateContext, modelChoice);
+				if (!"TOOL".equals(current.mode)) {
+					return current;
+				}
+				return new ModeMessage("ASK", "I already checked that. Try a more specific request.", List.of(), current.searchUsed, current.sources, current.highlights);
 			}
 			List<String> outputs = new ArrayList<>();
 			for (String raw : current.commands) {
@@ -2466,6 +2551,9 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		if (reply.commands != null && !reply.commands.isEmpty()) {
 			return reply;
 		}
+		if (isDirectBuildRequest(prompt) && !wantsMaterialAcquisition(prompt) && !shouldAutoToolForBuildSite(reply.message)) {
+			return reply;
+		}
 		if (!shouldRequestToolFollowup(reply.message)) {
 			return reply;
 		}
@@ -2491,6 +2579,37 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			return false;
 		}
 		return true;
+	}
+
+	private static boolean shouldAutoToolForBuildSite(String message) {
+		if (message == null || message.isBlank()) {
+			return false;
+		}
+		String lower = message.toLowerCase(Locale.ROOT);
+		return containsAny(lower, "flat", "terrain", "area", "spot", "site", "build site", "buildsite", "ground", "nearby area");
+	}
+
+	private static boolean isDirectBuildRequest(String prompt) {
+		if (prompt == null || prompt.isBlank()) {
+			return false;
+		}
+		String lower = prompt.toLowerCase(Locale.ROOT);
+		return containsAny(lower,
+			"build ", "build me", "construct", "make a ", "make an ", "create a ", "create an ",
+			"place ", "spawn ", "setblock", "fill ", "generate a ", "generate an ", "put a "
+		);
+	}
+
+	private static boolean wantsMaterialAcquisition(String prompt) {
+		if (prompt == null || prompt.isBlank()) {
+			return false;
+		}
+		String lower = prompt.toLowerCase(Locale.ROOT);
+		return containsAny(lower,
+			"survival", "survival-friendly", "without cheats", "legit", "gather", "collect",
+			"craftable", "use what i have", "using my inventory", "using nearby materials",
+			"don't spawn", "don't cheat", "find the materials", "get the materials", "materials first"
+		);
 	}
 
 	private static String normalizeToolCommand(String raw) {
@@ -2532,7 +2651,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		if ("PLAN".equals(current.mode) && shouldAutoContinue(prompt, current.message)) {
 			current = new ModeMessage("CONTINUE", current.message, List.of(), current.searchUsed, current.sources, List.of());
 		}
-		if ("COMMAND".equals(current.mode) && (current.commands == null || current.commands.isEmpty())
+		if ("COMMAND".equals(current.mode) && current.buildPlan() == null && (current.commands == null || current.commands.isEmpty())
 			&& shouldAutoContinue(prompt, current.message)) {
 			current = new ModeMessage("CONTINUE", current.message, List.of(), current.searchUsed, current.sources, List.of());
 		}
@@ -2728,6 +2847,10 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 				yield prefix + (players.isEmpty() ? "Players: none" : "Players: " + players);
 			}
 			case "stats" -> prefix + buildPlayerStatsContext(player);
+			case "buildsite" -> {
+				int radius = parts.length >= 4 ? parseInteger(parts[3], VoxelBuildPlanner.DEFAULT_SITE_RADIUS) : VoxelBuildPlanner.DEFAULT_SITE_RADIUS;
+				yield prefix + VoxelBuildPlanner.summarizeBuildSite(player, radius);
+			}
 			case "settings" -> {
 				String category = parts.length >= 4 ? parts[3].toLowerCase(Locale.ROOT) : "summary";
 				yield prefix + buildSettingsSkillOutput(player, category);
@@ -3528,18 +3651,33 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			source.sendError(Text.literal("This command must be run by a player."));
 			return 0;
 		}
-		List<String> undo = LAST_UNDO_COMMANDS.get(player.getUuid());
-		if (undo == null || undo.isEmpty()) {
+		UndoBatch batch = LAST_UNDO_BATCHES.get(player.getUuid());
+		if (batch == null || (batch.commands().isEmpty() && batch.snapshots().isEmpty())) {
 			source.sendFeedback(() -> Text.literal("Nothing to undo."), false);
 			return 1;
 		}
-		CommandResult result = executeCommands(player, undo);
-		LAST_UNDO_COMMANDS.remove(player.getUuid());
-		if (result.success) {
-			source.sendFeedback(() -> Text.literal("Undo complete."), false);
+		CommandResult result = batch.commands().isEmpty()
+			? new CommandResult(true, "", List.of())
+			: executeCommands(player, batch.commands());
+		RestoreResult restore = batch.snapshots().isEmpty()
+			? new RestoreResult(true, 0, "")
+			: restoreSnapshots(player.getServer(), batch.snapshots());
+		LAST_UNDO_BATCHES.remove(player.getUuid());
+		if (result.success && restore.success()) {
+			String message = restore.restoredBlocks() > 0
+				? "Undo complete. Restored " + restore.restoredBlocks() + " block" + (restore.restoredBlocks() == 1 ? "" : "s") + "."
+				: "Undo complete.";
+			source.sendFeedback(() -> Text.literal(message), false);
 			return 1;
 		}
-		source.sendFeedback(() -> Text.literal("Undo completed with issues: " + result.errorSummary), false);
+		List<String> issues = new ArrayList<>();
+		if (!result.success && result.errorSummary != null && !result.errorSummary.isBlank()) {
+			issues.add(result.errorSummary);
+		}
+		if (!restore.success() && restore.errorSummary() != null && !restore.errorSummary().isBlank()) {
+			issues.add(restore.errorSummary());
+		}
+		source.sendFeedback(() -> Text.literal("Undo completed with issues: " + String.join(" | ", issues)), false);
 		return 1;
 	}
 
@@ -3547,7 +3685,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		List<String> execute = new ArrayList<>();
 		List<String> undo = new ArrayList<>();
 		if (commands == null) {
-			return new PreparedCommands(execute, undo);
+			return new PreparedCommands(execute, undo, List.of());
 		}
 		String tagPrefix = "ai_undo_" + player.getUuid().toString().replace("-", "").substring(0, 8);
 		int index = 0;
@@ -3574,7 +3712,156 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			}
 			index++;
 		}
-		return new PreparedCommands(execute, undo);
+		List<BlockUndoSnapshot> snapshots = captureUndoSnapshots(player, execute);
+		return new PreparedCommands(execute, undo, snapshots);
+	}
+
+	private static List<BlockUndoSnapshot> captureUndoSnapshots(ServerPlayerEntity player, List<String> commands) {
+		if (player == null || commands == null || commands.isEmpty()) {
+			return List.of();
+		}
+		ServerWorld world = player.getServerWorld();
+		LinkedHashMap<BlockPos, BlockUndoSnapshot> snapshots = new LinkedHashMap<>();
+		for (String raw : commands) {
+			String command = sanitizeCommand(raw);
+			if (command.isBlank()) {
+				continue;
+			}
+			AffectedBlocks affected = collectAffectedBlocks(player, command, MAX_UNDO_SNAPSHOT_BLOCKS - snapshots.size());
+			if (affected == null) {
+				continue;
+			}
+			if (affected.overflow()) {
+				LOGGER.info("Skipping block snapshot undo for oversized command: {}", command);
+				return List.of();
+			}
+			for (BlockPos pos : affected.positions()) {
+				if (snapshots.containsKey(pos)) {
+					continue;
+				}
+				BlockState state = world.getBlockState(pos);
+				BlockEntity entity = world.getBlockEntity(pos);
+				NbtCompound nbt = entity == null ? null : entity.createNbt(player.getRegistryManager()).copy();
+				snapshots.put(pos.toImmutable(), new BlockUndoSnapshot(world.getRegistryKey(), pos.toImmutable(), state, nbt));
+			}
+		}
+		return snapshots.isEmpty() ? List.of() : new ArrayList<>(snapshots.values());
+	}
+
+	private static AffectedBlocks collectAffectedBlocks(ServerPlayerEntity player, String command, int remainingBudget) {
+		if (player == null || command == null || command.isBlank() || remainingBudget <= 0) {
+			return null;
+		}
+		String[] parts = command.split("\\s+");
+		if (parts.length < 4) {
+			return null;
+		}
+		String root = parts[0].toLowerCase(Locale.ROOT);
+		if ("setblock".equals(root)) {
+			BlockPos pos = parseCommandBlockPos(player, parts, 1);
+			if (pos == null) {
+				return null;
+			}
+			return new AffectedBlocks(List.of(pos), false);
+		}
+		if (!"fill".equals(root) || parts.length < 7) {
+			return null;
+		}
+		BlockPos from = parseCommandBlockPos(player, parts, 1);
+		BlockPos to = parseCommandBlockPos(player, parts, 4);
+		if (from == null || to == null) {
+			return null;
+		}
+		int minX = Math.min(from.getX(), to.getX());
+		int minY = Math.min(from.getY(), to.getY());
+		int minZ = Math.min(from.getZ(), to.getZ());
+		int maxX = Math.max(from.getX(), to.getX());
+		int maxY = Math.max(from.getY(), to.getY());
+		int maxZ = Math.max(from.getZ(), to.getZ());
+		long volume = (long) (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+		if (volume > remainingBudget) {
+			return new AffectedBlocks(List.of(), true);
+		}
+		String mode = parts.length >= 9 ? parts[8].toLowerCase(Locale.ROOT) : "";
+		List<BlockPos> positions = new ArrayList<>((int) volume);
+		for (int x = minX; x <= maxX; x++) {
+			for (int y = minY; y <= maxY; y++) {
+				for (int z = minZ; z <= maxZ; z++) {
+					boolean boundary = x == minX || x == maxX || y == minY || y == maxY || z == minZ || z == maxZ;
+					if ("outline".equals(mode) && !boundary) {
+						continue;
+					}
+					positions.add(new BlockPos(x, y, z));
+				}
+			}
+		}
+		return new AffectedBlocks(positions, false);
+	}
+
+	private static BlockPos parseCommandBlockPos(ServerPlayerEntity player, String[] parts, int startIndex) {
+		if (player == null || parts == null || startIndex < 0 || parts.length <= startIndex + 2) {
+			return null;
+		}
+		BlockPos base = player.getBlockPos();
+		Integer x = parseCoordinateToken(parts[startIndex], base.getX());
+		Integer y = parseCoordinateToken(parts[startIndex + 1], base.getY());
+		Integer z = parseCoordinateToken(parts[startIndex + 2], base.getZ());
+		if (x == null || y == null || z == null) {
+			return null;
+		}
+		return new BlockPos(x, y, z);
+	}
+
+	private static Integer parseCoordinateToken(String token, int base) {
+		if (token == null || token.isBlank()) {
+			return null;
+		}
+		String trimmed = token.trim();
+		if (trimmed.startsWith("^")) {
+			return null;
+		}
+		try {
+			if (trimmed.startsWith("~")) {
+				if (trimmed.length() == 1) {
+					return base;
+				}
+				double offset = Double.parseDouble(trimmed.substring(1));
+				return base + (int) Math.floor(offset);
+			}
+			return (int) Math.floor(Double.parseDouble(trimmed));
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private static RestoreResult restoreSnapshots(MinecraftServer server, List<BlockUndoSnapshot> snapshots) {
+		if (server == null || snapshots == null || snapshots.isEmpty()) {
+			return new RestoreResult(true, 0, "");
+		}
+		int restored = 0;
+		List<String> errors = new ArrayList<>();
+		for (BlockUndoSnapshot snapshot : snapshots) {
+			ServerWorld world = server.getWorld(snapshot.worldKey());
+			if (world == null) {
+				errors.add("Missing world for block snapshot at " + snapshot.pos().toShortString());
+				continue;
+			}
+			try {
+				world.setBlockState(snapshot.pos(), snapshot.state(), 3);
+				if (snapshot.blockEntityNbt() != null) {
+					BlockEntity entity = world.getBlockEntity(snapshot.pos());
+					if (entity != null) {
+						entity.read(snapshot.blockEntityNbt().copy(), server.getRegistryManager());
+						entity.markDirty();
+						world.getChunkManager().markForUpdate(snapshot.pos());
+					}
+				}
+				restored++;
+			} catch (Exception e) {
+				errors.add("Failed to restore " + snapshot.pos().toShortString() + ": " + e.getMessage());
+			}
+		}
+		return new RestoreResult(errors.isEmpty(), restored, String.join(" | ", errors));
 	}
 
 	private static String buildUndoCommand(String command) {
@@ -3899,6 +4186,409 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		return trimmed;
 	}
 
+	private static void applyGeminiResponseSchema(JsonObject generationConfig) {
+		if (generationConfig == null) {
+			return;
+		}
+		generationConfig.addProperty("responseMimeType", "application/json");
+		generationConfig.add("responseJsonSchema", buildModelResponseJsonSchema());
+	}
+
+	private static JsonObject buildModelResponseJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.addProperty("additionalProperties", false);
+
+		JsonObject properties = new JsonObject();
+		properties.add("mode", enumSchema("string", "ASK", "PLAN", "COMMAND", "CONTINUE", "TOOL"));
+		properties.add("message", primitiveSchema("string"));
+		properties.add("commands", arraySchema(primitiveSchema("string")));
+		properties.add("highlights", arraySchema(buildHighlightJsonSchema()));
+		properties.add("build_plan", buildPlanJsonSchema());
+		schema.add("properties", properties);
+
+		JsonArray required = new JsonArray();
+		required.add("mode");
+		required.add("message");
+		required.add("commands");
+		schema.add("required", required);
+		addPropertyOrdering(schema, "mode", "message", "commands", "build_plan", "highlights");
+		return schema;
+	}
+
+	private static JsonObject buildHighlightJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.addProperty("additionalProperties", false);
+		JsonObject properties = new JsonObject();
+		properties.add("x", primitiveSchema("number"));
+		properties.add("y", primitiveSchema("number"));
+		properties.add("z", primitiveSchema("number"));
+		properties.add("label", primitiveSchema("string"));
+		properties.add("color", primitiveSchema("string"));
+		properties.add("durationMs", primitiveSchema("integer"));
+		schema.add("properties", properties);
+		JsonArray required = new JsonArray();
+		required.add("x");
+		required.add("y");
+		required.add("z");
+		schema.add("required", required);
+		return schema;
+	}
+
+	private static JsonObject buildPlanJsonSchema() {
+		return buildPlanJsonSchema(true);
+	}
+
+	private static JsonObject buildPlanJsonSchema(boolean includeSteps) {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.addProperty("additionalProperties", true);
+
+		JsonObject properties = new JsonObject();
+		properties.add("summary", primitiveSchema("string"));
+		properties.add("description", primitiveSchema("string"));
+		properties.add("anchor", primitiveSchema("string"));
+		properties.add("origin", buildPointJsonSchema());
+		properties.add("offset", buildPointJsonSchema());
+		properties.add("rotate", buildRotateJsonSchema());
+			properties.add("rotation", buildRotateJsonSchema());
+		properties.add("palette", buildPaletteJsonSchema());
+		properties.add("clear", arraySchema(buildVolumeJsonSchema()));
+		properties.add("cuboids", arraySchema(buildCuboidJsonSchema()));
+		properties.add("blocks", arraySchema(buildBlockPlacementJsonSchema()));
+		if (includeSteps) {
+			properties.add("steps", arraySchema(buildBuildStepJsonSchema()));
+		}
+		schema.add("properties", properties);
+		addPropertyOrdering(schema, "summary", "description", "anchor", "origin", "offset", "rotate", "rotation", "palette", "clear", "cuboids", "blocks", "steps");
+		return schema;
+	}
+
+	private static JsonObject buildBuildStepJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.addProperty("additionalProperties", true);
+		JsonObject properties = new JsonObject();
+		properties.add("phase", primitiveSchema("string"));
+		properties.add("name", primitiveSchema("string"));
+		properties.add("label", primitiveSchema("string"));
+		properties.add("step", primitiveSchema("string"));
+		properties.add("plan", buildPlanJsonSchema(false));
+		schema.add("properties", properties);
+		addPropertyOrdering(schema, "phase", "plan", "name", "label", "step");
+		return schema;
+	}
+
+	private static JsonObject buildPaletteJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		JsonObject blockDescriptor = new JsonObject();
+		blockDescriptor.addProperty("type", "object");
+		blockDescriptor.addProperty("additionalProperties", true);
+		JsonObject descProps = new JsonObject();
+		descProps.add("block", primitiveSchema("string"));
+		descProps.add("material", primitiveSchema("string"));
+		descProps.add("id", primitiveSchema("string"));
+		blockDescriptor.add("properties", descProps);
+
+		JsonArray anyOf = new JsonArray();
+		anyOf.add(primitiveSchema("string"));
+		anyOf.add(blockDescriptor);
+		schema.add("additionalProperties", anyOfSchema(anyOf));
+		return schema;
+	}
+
+	private static JsonObject buildVolumeJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.addProperty("additionalProperties", true);
+		JsonObject properties = new JsonObject();
+		properties.add("name", primitiveSchema("string"));
+		properties.add("label", primitiveSchema("string"));
+		properties.add("from", buildPointJsonSchema());
+		properties.add("to", buildPointJsonSchema());
+		properties.add("start", buildPointJsonSchema());
+		properties.add("end", buildPointJsonSchema());
+		properties.add("location", buildLocationJsonSchema());
+		properties.add("size", buildSizeJsonSchema());
+		properties.add("dimensions", buildSizeJsonSchema());
+		properties.add("width", primitiveSchema("integer"));
+		properties.add("height", primitiveSchema("integer"));
+		properties.add("depth", primitiveSchema("integer"));
+			properties.add("length", primitiveSchema("integer"));
+			schema.add("properties", properties);
+		addPropertyOrdering(schema, "name", "label", "from", "to", "start", "end", "location", "size", "dimensions", "width", "height", "depth", "length");
+		return schema;
+	}
+
+	private static JsonObject buildCuboidJsonSchema() {
+		JsonObject schema = buildVolumeJsonSchema();
+		JsonObject properties = schema.getAsJsonObject("properties");
+		properties.add("block", primitiveSchema("string"));
+		properties.add("material", primitiveSchema("string"));
+		properties.add("id", primitiveSchema("string"));
+		properties.add("fill", primitiveSchema("string"));
+		properties.add("mode", primitiveSchema("string"));
+		properties.add("hollow", primitiveSchema("boolean"));
+		properties.add("properties", buildStringMapJsonSchema());
+		properties.add("state", buildStringMapJsonSchema());
+		addPropertyOrdering(schema, "name", "label", "block", "material", "id", "from", "to", "start", "end", "location", "size", "dimensions", "width", "height", "depth", "length", "fill", "mode", "hollow", "properties", "state");
+		return schema;
+	}
+
+	private static JsonObject buildBlockPlacementJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.addProperty("additionalProperties", true);
+		JsonObject properties = new JsonObject();
+		properties.add("name", primitiveSchema("string"));
+		properties.add("label", primitiveSchema("string"));
+		properties.add("block", primitiveSchema("string"));
+		properties.add("material", primitiveSchema("string"));
+		properties.add("id", primitiveSchema("string"));
+		properties.add("pos", buildPointJsonSchema());
+			properties.add("location", buildPointJsonSchema());
+			properties.add("properties", buildStringMapJsonSchema());
+			properties.add("state", buildStringMapJsonSchema());
+			schema.add("properties", properties);
+		addPropertyOrdering(schema, "name", "label", "block", "material", "id", "pos", "location", "properties", "state");
+		return schema;
+	}
+
+	private static JsonObject buildLocationJsonSchema() {
+		JsonObject schema = buildPointJsonSchema();
+		JsonObject properties = schema.getAsJsonObject("properties");
+		properties.add("start_x", primitiveSchema("integer"));
+		properties.add("start_y", primitiveSchema("integer"));
+		properties.add("start_z", primitiveSchema("integer"));
+		properties.add("end_x", primitiveSchema("integer"));
+		properties.add("end_y", primitiveSchema("integer"));
+		properties.add("end_z", primitiveSchema("integer"));
+		properties.add("origin_x", primitiveSchema("integer"));
+		properties.add("origin_y", primitiveSchema("integer"));
+			properties.add("origin_z", primitiveSchema("integer"));
+			properties.add("size", buildSizeJsonSchema());
+			properties.add("dimensions", buildSizeJsonSchema());
+		addPropertyOrdering(schema, "x", "y", "z", "dx", "dy", "dz", "origin_x", "origin_y", "origin_z", "pos_x", "pos_y", "pos_z", "start_x", "start_y", "start_z", "end_x", "end_y", "end_z", "size", "dimensions");
+		return schema;
+	}
+
+	private static JsonObject buildPointJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.addProperty("additionalProperties", true);
+		JsonObject properties = new JsonObject();
+		properties.add("x", primitiveSchema("integer"));
+		properties.add("y", primitiveSchema("integer"));
+		properties.add("z", primitiveSchema("integer"));
+		properties.add("dx", primitiveSchema("integer"));
+		properties.add("dy", primitiveSchema("integer"));
+		properties.add("dz", primitiveSchema("integer"));
+		properties.add("origin_x", primitiveSchema("integer"));
+		properties.add("origin_y", primitiveSchema("integer"));
+		properties.add("origin_z", primitiveSchema("integer"));
+			properties.add("pos_x", primitiveSchema("integer"));
+			properties.add("pos_y", primitiveSchema("integer"));
+			properties.add("pos_z", primitiveSchema("integer"));
+			schema.add("properties", properties);
+		addPropertyOrdering(schema, "x", "y", "z", "dx", "dy", "dz", "origin_x", "origin_y", "origin_z", "pos_x", "pos_y", "pos_z");
+		return schema;
+	}
+
+	private static JsonObject buildSizeJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.addProperty("additionalProperties", true);
+		JsonObject properties = new JsonObject();
+		properties.add("x", primitiveSchema("integer"));
+		properties.add("y", primitiveSchema("integer"));
+		properties.add("z", primitiveSchema("integer"));
+		properties.add("width", primitiveSchema("integer"));
+		properties.add("height", primitiveSchema("integer"));
+		properties.add("depth", primitiveSchema("integer"));
+		properties.add("length", primitiveSchema("integer"));
+			properties.add("w", primitiveSchema("integer"));
+			properties.add("h", primitiveSchema("integer"));
+			properties.add("d", primitiveSchema("integer"));
+			schema.add("properties", properties);
+		addPropertyOrdering(schema, "x", "y", "z", "width", "height", "depth", "length", "w", "h", "d");
+		return schema;
+	}
+
+	private static JsonObject buildStringMapJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.add("additionalProperties", primitiveSchema("string"));
+		return schema;
+	}
+
+	private static JsonObject buildRotateJsonSchema() {
+		JsonArray anyOf = new JsonArray();
+		anyOf.add(enumSchema("integer", "0", "90", "180", "270"));
+		anyOf.add(enumSchema(
+			"string",
+			"0", "90", "180", "270",
+			"cw", "ccw",
+			"clockwise", "counterclockwise", "counter-clockwise",
+			"none"
+		));
+		return anyOfSchema(anyOf);
+	}
+
+	private static JsonObject primitiveSchema(String type) {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", type);
+		return schema;
+	}
+
+	private static JsonObject arraySchema(JsonObject itemSchema) {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "array");
+		schema.add("items", itemSchema);
+		return schema;
+	}
+
+	private static JsonObject enumSchema(String type, String... values) {
+		JsonObject schema = primitiveSchema(type);
+		JsonArray enums = new JsonArray();
+		for (String value : values) {
+			if (value == null) {
+				continue;
+			}
+			if ("integer".equals(type)) {
+				enums.add(Integer.parseInt(value));
+			} else {
+				enums.add(value);
+			}
+		}
+		schema.add("enum", enums);
+		return schema;
+	}
+
+	private static JsonObject anyOfSchema(JsonArray anyOf) {
+		JsonObject schema = new JsonObject();
+		schema.add("anyOf", anyOf);
+		return schema;
+	}
+
+	private static void addPropertyOrdering(JsonObject schema, String... keys) {
+		if (schema == null || keys == null || keys.length == 0) {
+			return;
+		}
+		JsonArray ordering = new JsonArray();
+		for (String key : keys) {
+			if (key == null || key.isBlank()) {
+				continue;
+			}
+			ordering.add(key);
+		}
+		if (!ordering.isEmpty()) {
+			schema.add("propertyOrdering", ordering);
+		}
+	}
+
+	private static boolean shouldEnableGoogleSearch(String prompt, String errorContext) {
+		String combined = ((prompt == null ? "" : prompt) + " " + (errorContext == null ? "" : errorContext)).toLowerCase(Locale.ROOT);
+		if (combined.isBlank()) {
+			return false;
+		}
+		return containsAny(
+			combined,
+			"latest", "current", "today", "news", "web", "website", "internet", "online",
+			"google", "search", "look up", "lookup", "docs", "documentation", "release notes",
+			"patch notes", "api", "version", "model", "pricing", "announcement"
+		);
+	}
+
+	private static JsonArray buildGeminiTools(boolean includeGoogleSearch, boolean includeCodeExecution) {
+		JsonArray tools = new JsonArray();
+		if (includeGoogleSearch) {
+			JsonObject googleSearch = new JsonObject();
+			googleSearch.add("googleSearch", new JsonObject());
+			tools.add(googleSearch);
+		}
+		if (includeCodeExecution) {
+			JsonObject codeExecution = new JsonObject();
+			codeExecution.add("codeExecution", new JsonObject());
+			tools.add(codeExecution);
+		}
+		return tools;
+	}
+
+	private static JsonObject cloneJsonObject(JsonObject obj) {
+		return obj == null ? new JsonObject() : GSON.fromJson(GSON.toJson(obj), JsonObject.class);
+	}
+
+	private static HttpResponse<String> sendGeminiRequest(String apiKey, String modelId, JsonObject request) throws Exception {
+		String body = GSON.toJson(request);
+		HttpRequest httpRequest = HttpRequest.newBuilder()
+			.uri(URI.create(GEMINI_ENDPOINT_BASE + modelId + ":generateContent?key=" + apiKey))
+			.header("Content-Type", "application/json; charset=utf-8")
+			.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+			.build();
+		return HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+	}
+
+	private static JsonObject executeGeminiRequestWithFallbacks(
+		String apiKey,
+		String modelId,
+		JsonObject request,
+		boolean allowToolFallback,
+		boolean allowSchemaFallback
+	) throws Exception {
+		JsonObject baseRequest = cloneJsonObject(request);
+		HttpResponse<String> response = sendWithRetries(apiKey, modelId, baseRequest);
+		if (isHttpSuccess(response.statusCode())) {
+			return GSON.fromJson(response.body(), JsonObject.class);
+		}
+
+		if (allowToolFallback && baseRequest.has("tools")) {
+			JsonObject noToolsRequest = cloneJsonObject(baseRequest);
+			noToolsRequest.remove("tools");
+			response = sendWithRetries(apiKey, modelId, noToolsRequest);
+			if (isHttpSuccess(response.statusCode())) {
+				return GSON.fromJson(response.body(), JsonObject.class);
+			}
+			baseRequest = noToolsRequest;
+		}
+
+		if (allowSchemaFallback && baseRequest.has("generationConfig") && baseRequest.get("generationConfig").isJsonObject()) {
+			JsonObject noSchemaRequest = cloneJsonObject(baseRequest);
+			JsonObject generationConfig = noSchemaRequest.getAsJsonObject("generationConfig");
+			generationConfig.remove("responseJsonSchema");
+			generationConfig.remove("responseMimeType");
+			response = sendWithRetries(apiKey, modelId, noSchemaRequest);
+			if (isHttpSuccess(response.statusCode())) {
+				return GSON.fromJson(response.body(), JsonObject.class);
+			}
+		}
+
+		throw new IllegalStateException("HTTP " + response.statusCode() + " - " + response.body());
+	}
+
+	private static HttpResponse<String> sendWithRetries(String apiKey, String modelId, JsonObject request) throws Exception {
+		HttpResponse<String> last = null;
+		for (int attempt = 0; attempt < 3; attempt++) {
+			last = sendGeminiRequest(apiKey, modelId, request);
+			if (!isRetryableStatus(last.statusCode())) {
+				return last;
+			}
+			if (attempt < 2) {
+				Thread.sleep(350L * (attempt + 1));
+			}
+		}
+		return last;
+	}
+
+	private static boolean isHttpSuccess(int statusCode) {
+		return statusCode >= 200 && statusCode < 300;
+	}
+
+	private static boolean isRetryableStatus(int statusCode) {
+		return statusCode == 429 || (statusCode >= 500 && statusCode < 600);
+	}
+
 	private static ModeMessage callGeminiSafely(
 		String apiKey,
 		String prompt,
@@ -3975,35 +4665,21 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		contents.add(content);
 		request.add("contents", contents);
 
-		ModelChoice effectiveChoice = modelChoice == null ? ModelChoice.FLASH : modelChoice;
-		JsonObject generationConfig = new JsonObject();
-		JsonObject thinkingConfig = new JsonObject();
-		thinkingConfig.addProperty("thinkingLevel", effectiveChoice.thinkingLevel);
-		generationConfig.add("thinkingConfig", thinkingConfig);
-		request.add("generationConfig", generationConfig);
+			ModelChoice effectiveChoice = modelChoice == null ? ModelChoice.FLASH : modelChoice;
+			JsonObject generationConfig = new JsonObject();
+			JsonObject thinkingConfig = new JsonObject();
+			thinkingConfig.addProperty("thinkingLevel", effectiveChoice.thinkingLevel);
+			generationConfig.add("thinkingConfig", thinkingConfig);
+			applyGeminiResponseSchema(generationConfig);
+			request.add("generationConfig", generationConfig);
+			if (shouldEnableGoogleSearch(prompt, errorContext)) {
+				request.add("tools", buildGeminiTools(true, false));
+			}
 
-		JsonArray tools = new JsonArray();
-		JsonObject googleSearch = new JsonObject();
-		googleSearch.add("google_search", new JsonObject());
-		tools.add(googleSearch);
-		request.add("tools", tools);
-
-		String body = GSON.toJson(request);
-		HttpRequest httpRequest = HttpRequest.newBuilder()
-			.uri(URI.create(GEMINI_ENDPOINT_BASE + effectiveChoice.modelId + ":generateContent?key=" + apiKey))
-			.header("Content-Type", "application/json; charset=utf-8")
-			.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-			.build();
-
-		HttpResponse<String> response = HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-		if (response.statusCode() < 200 || response.statusCode() >= 300) {
-			return new ModeMessage("ASK", "Error: HTTP " + response.statusCode() + " - " + response.body(), List.of(), false, List.of(), List.of());
-		}
-
-		JsonObject json = GSON.fromJson(response.body(), JsonObject.class);
-		JsonArray candidates = json.getAsJsonArray("candidates");
-		if (candidates == null || candidates.isEmpty()) {
-			return new ModeMessage("ASK", "No response.", List.of(), false, List.of(), List.of());
+			JsonObject json = executeGeminiRequestWithFallbacks(apiKey, effectiveChoice.modelId, request, true, true);
+			JsonArray candidates = json.getAsJsonArray("candidates");
+			if (candidates == null || candidates.isEmpty()) {
+				return new ModeMessage("ASK", "No response.", List.of(), false, List.of(), List.of());
 		}
 
 		JsonObject first = candidates.get(0).getAsJsonObject();
@@ -4078,38 +4754,23 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		contents.add(content);
 		request.add("contents", contents);
 
-		ModelChoice effectiveChoice = modelChoice == null ? ModelChoice.FLASH : modelChoice;
-		JsonObject generationConfig = new JsonObject();
-		JsonObject thinkingConfig = new JsonObject();
-		thinkingConfig.addProperty("thinkingLevel", effectiveChoice.thinkingLevel);
-		generationConfig.add("thinkingConfig", thinkingConfig);
-		request.add("generationConfig", generationConfig);
+			ModelChoice effectiveChoice = modelChoice == null ? ModelChoice.FLASH : modelChoice;
+			JsonObject generationConfig = new JsonObject();
+			JsonObject thinkingConfig = new JsonObject();
+			thinkingConfig.addProperty("thinkingLevel", effectiveChoice.thinkingLevel);
+			generationConfig.add("thinkingConfig", thinkingConfig);
+			applyGeminiResponseSchema(generationConfig);
+			request.add("generationConfig", generationConfig);
+			boolean includeSearch = shouldEnableGoogleSearch(prompt, null);
+			JsonArray tools = buildGeminiTools(includeSearch, true);
+			if (!tools.isEmpty()) {
+				request.add("tools", tools);
+			}
 
-		JsonArray tools = new JsonArray();
-		JsonObject googleSearch = new JsonObject();
-		googleSearch.add("google_search", new JsonObject());
-		tools.add(googleSearch);
-		JsonObject codeExec = new JsonObject();
-		codeExec.add("code_execution", new JsonObject());
-		tools.add(codeExec);
-		request.add("tools", tools);
-
-		String body = GSON.toJson(request);
-		HttpRequest httpRequest = HttpRequest.newBuilder()
-			.uri(URI.create(GEMINI_ENDPOINT_BASE + effectiveChoice.modelId + ":generateContent?key=" + apiKey))
-			.header("Content-Type", "application/json; charset=utf-8")
-			.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-			.build();
-
-		HttpResponse<String> response = HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-		if (response.statusCode() < 200 || response.statusCode() >= 300) {
-			return new ModeMessage("ASK", "Error: HTTP " + response.statusCode() + " - " + response.body(), List.of(), false, List.of(), List.of());
-		}
-
-		JsonObject json = GSON.fromJson(response.body(), JsonObject.class);
-		JsonArray candidates = json.getAsJsonArray("candidates");
-		if (candidates == null || candidates.isEmpty()) {
-			return new ModeMessage("ASK", "No response.", List.of(), false, List.of(), List.of());
+			JsonObject json = executeGeminiRequestWithFallbacks(apiKey, effectiveChoice.modelId, request, true, true);
+			JsonArray candidates = json.getAsJsonArray("candidates");
+			if (candidates == null || candidates.isEmpty()) {
+				return new ModeMessage("ASK", "No response.", List.of(), false, List.of(), List.of());
 		}
 
 		JsonObject first = candidates.get(0).getAsJsonObject();
@@ -4156,6 +4817,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		JsonObject thinkingConfig = new JsonObject();
 		thinkingConfig.addProperty("thinkingLevel", "minimal");
 		generationConfig.add("thinkingConfig", thinkingConfig);
+		applyGeminiResponseSchema(generationConfig);
 		request.add("generationConfig", generationConfig);
 
 		String body = GSON.toJson(request);
@@ -4224,8 +4886,9 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 					commands.add(element.getAsString());
 				}
 			}
+			VoxelBuildPlanner.BuildPlan buildPlan = VoxelBuildPlanner.parseBuildPlan(obj);
 			List<Highlight> highlights = parseHighlights(obj);
-			return new ModeMessage(normalizeMode(mode), message, commands, searchUsed, sources, highlights);
+			return new ModeMessage(normalizeMode(mode), message, commands, searchUsed, sources, highlights, buildPlan);
 		} catch (Exception e) {
 			return parseModeMessageLoose(raw, searchUsed, sources);
 		}
@@ -4431,7 +5094,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			return message;
 		}
 		List<Highlight> updated = forceXrayHighlights(message.highlights);
-		return new ModeMessage(message.mode, message.message, message.commands, message.searchUsed, message.sources, updated);
+		return new ModeMessage(message.mode, message.message, message.commands, message.searchUsed, message.sources, updated, message.buildPlan);
 	}
 
 	private static boolean shouldForceXray(String prompt) {
@@ -4665,7 +5328,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			return "";
 		}
 		String lower = prompt.toLowerCase(Locale.ROOT);
-		if (!force && !containsAny(lower, "craft", "recipe", "make", "build", "need", "have", "inventory", "items", "materials", "show inventory", "what do i have")) {
+		if (!force && !containsAny(lower, "craft", "recipe", "make", "need", "have", "inventory", "items", "materials", "show inventory", "what do i have")) {
 			return "";
 		}
 		boolean includeComponents = includeComponentsOverride != null
@@ -5385,12 +6048,32 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		List<String> commands,
 		boolean searchUsed,
 		List<SourceLink> sources,
-		List<Highlight> highlights
-	) {}
+		List<Highlight> highlights,
+		VoxelBuildPlanner.BuildPlan buildPlan
+	) {
+		private ModeMessage(
+			String mode,
+			String message,
+			List<String> commands,
+			boolean searchUsed,
+			List<SourceLink> sources,
+			List<Highlight> highlights
+		) {
+			this(mode, message, commands, searchUsed, sources, highlights, null);
+		}
+	}
 
 	private record CommandResult(boolean success, String errorSummary, List<String> outputs) {}
 
-	private record PreparedCommands(List<String> executeCommands, List<String> undoCommands) {}
+	private record PreparedCommands(List<String> executeCommands, List<String> undoCommands, List<BlockUndoSnapshot> undoSnapshots) {}
+
+	private record UndoBatch(List<String> commands, List<BlockUndoSnapshot> snapshots) {}
+
+	private record BlockUndoSnapshot(RegistryKey<World> worldKey, BlockPos pos, BlockState state, NbtCompound blockEntityNbt) {}
+
+	private record AffectedBlocks(List<BlockPos> positions, boolean overflow) {}
+
+	private record RestoreResult(boolean success, int restoredBlocks, String errorSummary) {}
 
 	private static final class ModeState {
 		private final String label;
@@ -5891,7 +6574,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		AUTO("auto", "Auto"),
 		FLASH("flash", "Flash"),
 		FLASH_THINKING("flash-thinking", "Flash Thinking"),
-		PRO("pro", "Pro");
+		PRO("pro", "3.1 Pro Preview");
 
 		private final String storage;
 		private final String display;
@@ -5914,7 +6597,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 	private enum ModelChoice {
 		FLASH("gemini-3-flash-preview", "minimal"),
 		FLASH_THINKING("gemini-3-flash-preview", "medium"),
-		PRO("gemini-3-pro-preview", "high");
+		PRO("gemini-3.1-pro-preview", "high");
 
 		private final String modelId;
 		private final String thinkingLevel;
