@@ -156,12 +156,12 @@ final class VoxelBuildPlanner {
 		commands.addAll(accumulator.commands);
 		if (commands.isEmpty()) {
 			return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-				"Build plan did not contain any valid clear volumes, cuboids, or blocks.", accumulator.appliedRotation, Math.max(1, accumulator.phases));
+					"Build plan did not contain any valid clear volumes, cuboids, or blocks.", accumulator.appliedRotation, Math.max(1, accumulator.phases));
 		}
 
 		String summary = plan.summary() == null || plan.summary().isBlank()
-			? "Executing structured build plan."
-			: plan.summary().trim();
+				? "Executing structured build plan."
+				: plan.summary().trim();
 		if (accumulator.phases > 1) {
 			summary = summary + " (" + accumulator.phases + " phases)";
 		}
@@ -169,8 +169,25 @@ final class VoxelBuildPlanner {
 	}
 
 	static String summarizeBuildSite(ServerPlayerEntity player, int requestedRadius) {
-		if (player == null) {
+		BuildSiteDetails details = inspectBuildSite(player, requestedRadius);
+		if (details == null) {
 			return "BuildSite: unavailable";
+		}
+		List<String> topSurfaceSummary = new ArrayList<>();
+		for (SurfaceCount surface : details.surfaceCounts()) {
+			topSurfaceSummary.add(surface.blockId() + "=" + surface.count());
+		}
+		return "BuildSite radius " + details.radius()
+				+ ": use relative coordinates where player block position is 0,0,0. "
+				+ "Ground range y=" + details.minDy() + ".." + details.maxDy() + " relative. "
+				+ "Headroom clear in first " + MAX_SITE_SCAN_HEIGHT + " blocks above ground: " + details.clearPercent() + "%. "
+				+ "Surface sample: " + String.join(", ", topSurfaceSummary) + ". "
+				+ "Water columns: " + details.waterColumns() + "/" + details.totalColumns() + ".";
+	}
+
+	static BuildSiteDetails inspectBuildSite(ServerPlayerEntity player, int requestedRadius) {
+		if (player == null) {
+			return null;
 		}
 		ServerWorld world = player.getServerWorld();
 		BlockPos center = player.getBlockPos();
@@ -208,21 +225,24 @@ final class VoxelBuildPlanner {
 			}
 		}
 
-		List<Map.Entry<String, Integer>> topSurfaces = new ArrayList<>(surfaceCounts.entrySet());
-		topSurfaces.sort(Map.Entry.<String, Integer>comparingByValue().reversed());
-		List<String> topSurfaceSummary = new ArrayList<>();
-		for (int i = 0; i < Math.min(4, topSurfaces.size()); i++) {
-			Map.Entry<String, Integer> entry = topSurfaces.get(i);
-			topSurfaceSummary.add(entry.getKey() + "=" + entry.getValue());
+		List<Map.Entry<String, Integer>> sorted = new ArrayList<>(surfaceCounts.entrySet());
+		sorted.sort(Map.Entry.<String, Integer>comparingByValue().reversed());
+		List<SurfaceCount> topSurfaceSummary = new ArrayList<>();
+		for (int i = 0; i < Math.min(4, sorted.size()); i++) {
+			Map.Entry<String, Integer> entry = sorted.get(i);
+			topSurfaceSummary.add(new SurfaceCount(entry.getKey(), entry.getValue()));
 		}
 
 		int clearPercent = columns == 0 ? 0 : (int) Math.round((clearCells * 100.0) / columns);
-		return "BuildSite radius " + radius
-			+ ": use relative coordinates where player block position is 0,0,0. "
-			+ "Ground range y=" + minDy + ".." + maxDy + " relative. "
-			+ "Headroom clear in first " + MAX_SITE_SCAN_HEIGHT + " blocks above ground: " + clearPercent + "%. "
-			+ "Surface sample: " + String.join(", ", topSurfaceSummary) + ". "
-			+ "Water columns: " + waterColumns + "/" + columns + ".";
+		return new BuildSiteDetails(
+				radius,
+				minDy == Integer.MAX_VALUE ? 0 : minDy,
+				maxDy == Integer.MIN_VALUE ? 0 : maxDy,
+				clearPercent,
+				waterColumns,
+				columns,
+				topSurfaceSummary
+		);
 	}
 
 	private static boolean isReservedTopLevelField(String key) {
@@ -244,8 +264,8 @@ final class VoxelBuildPlanner {
 			JsonObject stepObj = element.getAsJsonObject();
 			String phase = firstString(stepObj, "phase", "name", "label", "step");
 			JsonObject planSource = stepObj.has("plan") && stepObj.get("plan").isJsonObject()
-				? stepObj.getAsJsonObject("plan")
-				: stepObj;
+					? stepObj.getAsJsonObject("plan")
+					: stepObj;
 			BuildPlan stepPlan = parsePlanObject(planSource, defaults);
 			if (stepPlan == null) {
 				continue;
@@ -255,15 +275,15 @@ final class VoxelBuildPlanner {
 				summary = phase;
 			}
 			steps.add(new BuildStep(phase == null || phase.isBlank() ? "phase" : phase, new BuildPlan(
-				summary,
-				stepPlan.anchor(),
-				stepPlan.offset(),
-				stepPlan.rotationDegrees(),
-				stepPlan.palette(),
-				stepPlan.clearVolumes(),
-				stepPlan.cuboids(),
-				stepPlan.blocks(),
-				stepPlan.steps()
+					summary,
+					stepPlan.anchor(),
+					stepPlan.offset(),
+					stepPlan.rotationDegrees(),
+					stepPlan.palette(),
+					stepPlan.clearVolumes(),
+					stepPlan.cuboids(),
+					stepPlan.blocks(),
+					stepPlan.steps()
 			)));
 		}
 		return steps;
@@ -278,11 +298,11 @@ final class VoxelBuildPlanner {
 			return false;
 		}
 		if (containsAny(lower,
-			"wall", "walls", "floor", "floors", "roof", "roofs", "foundation", "base", "pillar", "column",
-			"beam", "window", "windows", "door", "doors", "stairs", "stair", "room", "rooms", "tower",
-			"detail", "details", "decor", "decoration", "feature", "features", "placement", "placements",
-			"part", "parts", "element", "elements", "structure", "structures", "support", "supports",
-			"block", "blocks", "cuboid", "cuboids", "clear", "volume", "volumes"
+				"wall", "walls", "floor", "floors", "roof", "roofs", "foundation", "base", "pillar", "column",
+				"beam", "window", "windows", "door", "doors", "stairs", "stair", "room", "rooms", "tower",
+				"detail", "details", "decor", "decoration", "feature", "features", "placement", "placements",
+				"part", "parts", "element", "elements", "structure", "structures", "support", "supports",
+				"block", "blocks", "cuboid", "cuboids", "clear", "volume", "volumes"
 		)) {
 			return true;
 		}
@@ -296,8 +316,8 @@ final class VoxelBuildPlanner {
 		boolean hasBlock = firstString(obj, "block", "material", "id") != null;
 		boolean hasBounds = parseBounds(obj) != null;
 		boolean hasPos = parsePoint(obj, "pos") != null
-			|| parsePoint(obj, "location") != null
-			|| hasCoordinateKeys(obj, "x", "y", "z");
+				|| parsePoint(obj, "location") != null
+				|| hasCoordinateKeys(obj, "x", "y", "z");
 		return hasBlock && (hasBounds || hasPos);
 	}
 
@@ -413,8 +433,8 @@ final class VoxelBuildPlanner {
 		}
 		String fillMode = firstString(obj, "fill", "mode");
 		Boolean hollow = obj.has("hollow") && obj.get("hollow").isJsonPrimitive()
-			? obj.get("hollow").getAsBoolean()
-			: null;
+				? obj.get("hollow").getAsBoolean()
+				: null;
 		return new Cuboid(name, block, properties, bounds.from(), bounds.to(), fillMode, hollow);
 	}
 
@@ -503,17 +523,17 @@ final class VoxelBuildPlanner {
 		int height = Math.max(1, size.y());
 		int depth = Math.max(1, size.z());
 		GridPoint end = new GridPoint(
-			start.x() + width - 1,
-			start.y() + height - 1,
-			start.z() + depth - 1
+				start.x() + width - 1,
+				start.y() + height - 1,
+				start.z() + depth - 1
 		);
 		return normalizeBounds(start, end);
 	}
 
 	private static Bounds normalizeBounds(GridPoint a, GridPoint b) {
 		return new Bounds(
-			new GridPoint(Math.min(a.x(), b.x()), Math.min(a.y(), b.y()), Math.min(a.z(), b.z())),
-			new GridPoint(Math.max(a.x(), b.x()), Math.max(a.y(), b.y()), Math.max(a.z(), b.z()))
+				new GridPoint(Math.min(a.x(), b.x()), Math.min(a.y(), b.y()), Math.min(a.z(), b.z())),
+				new GridPoint(Math.max(a.x(), b.x()), Math.max(a.y(), b.y()), Math.max(a.z(), b.z()))
 		);
 	}
 
@@ -664,9 +684,9 @@ final class VoxelBuildPlanner {
 		}
 		if (obj.has("width") || obj.has("height") || obj.has("depth") || obj.has("length")) {
 			return new GridPoint(
-				readInt(obj, "width", readInt(obj, "w", 1)),
-				readInt(obj, "height", readInt(obj, "h", 1)),
-				readInt(obj, "depth", readInt(obj, "length", readInt(obj, "d", 1)))
+					readInt(obj, "width", readInt(obj, "w", 1)),
+					readInt(obj, "height", readInt(obj, "h", 1)),
+					readInt(obj, "depth", readInt(obj, "length", readInt(obj, "d", 1)))
 			);
 		}
 		return null;
@@ -682,9 +702,9 @@ final class VoxelBuildPlanner {
 		}
 		if (value.has("width") || value.has("height") || value.has("depth") || value.has("length")) {
 			return new GridPoint(
-				readInt(value, "width", readInt(value, "w", 1)),
-				readInt(value, "height", readInt(value, "h", 1)),
-				readInt(value, "depth", readInt(value, "length", readInt(value, "d", 1)))
+					readInt(value, "width", readInt(value, "w", 1)),
+					readInt(value, "height", readInt(value, "h", 1)),
+					readInt(value, "depth", readInt(value, "length", readInt(value, "d", 1)))
 			);
 		}
 		return null;
@@ -695,16 +715,16 @@ final class VoxelBuildPlanner {
 			return null;
 		}
 		return new GridPoint(
-			obj.get(xKey).getAsInt(),
-			obj.get(yKey).getAsInt(),
-			obj.get(zKey).getAsInt()
+				obj.get(xKey).getAsInt(),
+				obj.get(yKey).getAsInt(),
+				obj.get(zKey).getAsInt()
 		);
 	}
 
 	private static boolean hasCoordinateKeys(JsonObject obj, String xKey, String yKey, String zKey) {
 		return obj.has(xKey) && obj.get(xKey).isJsonPrimitive()
-			&& obj.has(yKey) && obj.get(yKey).isJsonPrimitive()
-			&& obj.has(zKey) && obj.get(zKey).isJsonPrimitive();
+				&& obj.has(yKey) && obj.get(yKey).isJsonPrimitive()
+				&& obj.has(zKey) && obj.get(zKey).isJsonPrimitive();
 	}
 
 	private static int readInt(JsonObject obj, String key, int fallback) {
@@ -804,11 +824,11 @@ final class VoxelBuildPlanner {
 	}
 
 	private static ResolvedBlock resolveBlock(
-		String requested,
-		Map<String, String> properties,
-		Map<String, String> palette,
-		List<String> repairs,
-		String label
+			String requested,
+			Map<String, String> properties,
+			Map<String, String> palette,
+			List<String> repairs,
+			String label
 	) {
 		String blockToken = requested == null ? "" : requested.trim();
 		if (blockToken.isBlank()) {
@@ -889,15 +909,15 @@ final class VoxelBuildPlanner {
 			default -> {
 				repairs.add("Unknown fill mode '" + value + "' for '" + label + "'; using solid.");
 				yield "";
-				}
-			};
+			}
+		};
 	}
 
 	private static CompiledBuild compilePlanInto(
-		ServerPlayerEntity player,
-		BuildPlan plan,
-		List<String> repairs,
-		CompileAccumulator accumulator
+			ServerPlayerEntity player,
+			BuildPlan plan,
+			List<String> repairs,
+			CompileAccumulator accumulator
 	) {
 		if (plan == null) {
 			return new CompiledBuild(false, List.of(), "No build executed.", repairs, "Missing phased build plan.", 0, Math.max(1, accumulator.phases));
@@ -922,7 +942,7 @@ final class VoxelBuildPlanner {
 			accumulator.totalVolume += bounds.volume();
 			if (accumulator.totalVolume > MAX_TOTAL_VOLUME) {
 				return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-					"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases));
+						"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases));
 			}
 			BlockPos start = toAbsolute(origin, bounds.from());
 			BlockPos end = toAbsolute(origin, bounds.to());
@@ -932,11 +952,11 @@ final class VoxelBuildPlanner {
 
 		if (plan.cuboids().size() > MAX_BUILD_CUBOIDS) {
 			return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-				"Build plan has too many cuboids (" + plan.cuboids().size() + " > " + MAX_BUILD_CUBOIDS + ").", rotation, Math.max(1, accumulator.phases));
+					"Build plan has too many cuboids (" + plan.cuboids().size() + " > " + MAX_BUILD_CUBOIDS + ").", rotation, Math.max(1, accumulator.phases));
 		}
 		if (plan.blocks().size() > MAX_BUILD_BLOCKS) {
 			return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-				"Build plan has too many single blocks (" + plan.blocks().size() + " > " + MAX_BUILD_BLOCKS + ").", rotation, Math.max(1, accumulator.phases));
+					"Build plan has too many single blocks (" + plan.blocks().size() + " > " + MAX_BUILD_BLOCKS + ").", rotation, Math.max(1, accumulator.phases));
 		}
 
 		for (Cuboid cuboid : plan.cuboids()) {
@@ -949,7 +969,7 @@ final class VoxelBuildPlanner {
 			accumulator.totalVolume += bounds.volume();
 			if (accumulator.totalVolume > MAX_TOTAL_VOLUME) {
 				return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-					"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases));
+						"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases));
 			}
 			String fillMode = normalizeFillMode(cuboid.fillMode(), cuboid.hollow(), repairs, cuboid.name());
 			BlockPos start = toAbsolute(origin, bounds.from());
@@ -973,7 +993,7 @@ final class VoxelBuildPlanner {
 			accumulator.totalVolume += placements.size();
 			if (accumulator.totalVolume > MAX_TOTAL_VOLUME) {
 				return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-					"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases));
+						"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases));
 			}
 		}
 
@@ -999,8 +1019,8 @@ final class VoxelBuildPlanner {
 		List<BlockPos> toRemove = new ArrayList<>();
 		for (BlockPos pos : occupiedBlocks.keySet()) {
 			if (pos.getX() >= minX && pos.getX() <= maxX
-				&& pos.getY() >= minY && pos.getY() <= maxY
-				&& pos.getZ() >= minZ && pos.getZ() <= maxZ) {
+					&& pos.getY() >= minY && pos.getY() <= maxY
+					&& pos.getZ() >= minZ && pos.getZ() <= maxZ) {
 				toRemove.add(pos);
 			}
 		}
@@ -1021,9 +1041,9 @@ final class VoxelBuildPlanner {
 			for (int y = minY; y <= maxY; y++) {
 				for (int z = minZ; z <= maxZ; z++) {
 					if (shellOnly
-						&& x > minX && x < maxX
-						&& y > minY && y < maxY
-						&& z > minZ && z < maxZ) {
+							&& x > minX && x < maxX
+							&& y > minY && y < maxY
+							&& z > minZ && z < maxZ) {
 						continue;
 					}
 					occupiedBlocks.put(new BlockPos(x, y, z), blockString);
@@ -1118,11 +1138,11 @@ final class VoxelBuildPlanner {
 	}
 
 	private static List<Placement> singleBlockPlacements(
-		BlockPos origin,
-		GridPoint pos,
-		ResolvedBlock resolved,
-		List<String> repairs,
-		String label
+			BlockPos origin,
+			GridPoint pos,
+			ResolvedBlock resolved,
+			List<String> repairs,
+			String label
 	) {
 		BlockPos absolute = toAbsolute(origin, pos);
 		if (resolved.blockId().endsWith("_door")) {
@@ -1172,8 +1192,8 @@ final class VoxelBuildPlanner {
 		String lower = withProperties(resolved.blockId(), lowerProps);
 		String upper = withProperties(resolved.blockId(), upperProps);
 		return List.of(
-			new Placement(base, lower),
-			new Placement(base.up(), upper)
+				new Placement(base, lower),
+				new Placement(base.up(), upper)
 		);
 	}
 
@@ -1200,8 +1220,8 @@ final class VoxelBuildPlanner {
 		String footBlock = withProperties(resolved.blockId(), footProps);
 		String headBlock = withProperties(resolved.blockId(), headProps);
 		return List.of(
-			new Placement(foot, footBlock),
-			new Placement(head, headBlock)
+				new Placement(foot, footBlock),
+				new Placement(head, headBlock)
 		);
 	}
 
@@ -1257,25 +1277,25 @@ final class VoxelBuildPlanner {
 	}
 
 	record BuildPlan(
-		String summary,
-		String anchor,
-		GridPoint offset,
-		int rotationDegrees,
-		Map<String, String> palette,
-		List<Volume> clearVolumes,
-		List<Cuboid> cuboids,
-		List<BlockPlacement> blocks,
-		List<BuildStep> steps
+			String summary,
+			String anchor,
+			GridPoint offset,
+			int rotationDegrees,
+			Map<String, String> palette,
+			List<Volume> clearVolumes,
+			List<Cuboid> cuboids,
+			List<BlockPlacement> blocks,
+			List<BuildStep> steps
 	) {}
 
 	record CompiledBuild(
-		boolean valid,
-		List<String> commands,
-		String summary,
-		List<String> repairs,
-		String error,
-		int appliedRotation,
-		int phases
+			boolean valid,
+			List<String> commands,
+			String summary,
+			List<String> repairs,
+			String error,
+			int appliedRotation,
+			int phases
 	) {}
 
 	record GridPoint(int x, int y, int z) {}
@@ -1283,8 +1303,8 @@ final class VoxelBuildPlanner {
 	record Bounds(GridPoint from, GridPoint to) {
 		long volume() {
 			return (long) (to.x() - from.x() + 1)
-				* (to.y() - from.y() + 1)
-				* (to.z() - from.z() + 1);
+					* (to.y() - from.y() + 1)
+					* (to.z() - from.z() + 1);
 		}
 	}
 
@@ -1293,13 +1313,13 @@ final class VoxelBuildPlanner {
 	record BuildStep(String phase, BuildPlan plan) {}
 
 	record Cuboid(
-		String name,
-		String block,
-		Map<String, String> properties,
-		GridPoint from,
-		GridPoint to,
-		String fillMode,
-		Boolean hollow
+			String name,
+			String block,
+			Map<String, String> properties,
+			GridPoint from,
+			GridPoint to,
+			String fillMode,
+			Boolean hollow
 	) {}
 
 	record BlockPlacement(String name, String block, Map<String, String> properties, GridPoint pos) {}
@@ -1320,6 +1340,18 @@ final class VoxelBuildPlanner {
 		}
 	}
 
+	record SurfaceCount(String blockId, int count) {}
+
+	record BuildSiteDetails(
+			int radius,
+			int minDy,
+			int maxDy,
+			int clearPercent,
+			int waterColumns,
+			int totalColumns,
+			List<SurfaceCount> surfaceCounts
+	) {}
+
 	private static final class CompileAccumulator {
 		private final List<String> commands = new ArrayList<>();
 		private final LinkedHashMap<BlockPos, String> occupiedBlocks = new LinkedHashMap<>();
@@ -1329,10 +1361,10 @@ final class VoxelBuildPlanner {
 	}
 
 	record ResolvedBlock(
-		String blockId,
-		Map<String, String> properties,
-		boolean valid,
-		String error
+			String blockId,
+			Map<String, String> properties,
+			boolean valid,
+			String error
 	) {
 		String blockString() {
 			if (blockId == null || blockId.isBlank()) {

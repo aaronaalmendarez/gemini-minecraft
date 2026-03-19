@@ -90,6 +90,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.concurrent.CompletableFuture;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -105,6 +106,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -185,11 +187,23 @@ public static final String MOD_ID = "gemini-ai-companion";
 	private static final Map<UUID, String> LAST_PROMPT = new ConcurrentHashMap<>();
 	private static final Map<UUID, RequestState> REQUEST_STATES = new ConcurrentHashMap<>();
 	private static final Map<UUID, VisionRequest> PENDING_VISION = new ConcurrentHashMap<>();
+	private static final Map<Long, PendingMcpCapture> PENDING_MCP_CAPTURES = new ConcurrentHashMap<>();
+	private static final Map<String, PendingMcpCommandBatch> PENDING_MCP_COMMAND_BATCHES = new ConcurrentHashMap<>();
+	private static final Map<UUID, String> LAST_MCP_COMMAND_BATCH_BY_PLAYER = new ConcurrentHashMap<>();
 	private static final Map<UUID, SettingsSnapshot> SETTINGS_SNAPSHOTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, PendingSettingChange> PENDING_SETTING_CHANGES = new ConcurrentHashMap<>();
 	private static final Set<UUID> AI_WHITELIST = ConcurrentHashMap.newKeySet();
 	private static PermissionMode PERMISSION_MODE = PermissionMode.OPS;
 	private static boolean SETUP_COMPLETE = false;
+	private static final int DEFAULT_MCP_BRIDGE_PORT = 7766;
+	private static final boolean MCP_LOOPBACK_ONLY = true;
+	private static boolean MCP_BRIDGE_ENABLED = false;
+	private static int MCP_BRIDGE_PORT = DEFAULT_MCP_BRIDGE_PORT;
+	private static String MCP_BRIDGE_TOKEN = "";
+	private static final SecureRandom MCP_TOKEN_RANDOM = new SecureRandom();
+	private static volatile McpBridgeServer MCP_BRIDGE;
+	private static volatile MinecraftServer ACTIVE_SERVER;
+	private static volatile long LAST_SERVER_TICK_MS = 0L;
 	private static final Map<UUID, Long> SETUP_WARN_COOLDOWN = new ConcurrentHashMap<>();
 	private static final Map<UUID, ModelPreference> MODEL_PREFERENCES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ParticleSetting> PARTICLE_SETTINGS = new ConcurrentHashMap<>();
@@ -206,6 +220,8 @@ public static final String MOD_ID = "gemini-ai-companion";
 	private static final int MAX_VOICE_BYTES = 1_000_000;
 	private static final int MAX_VISION_BYTES = 2_500_000;
 	private static final long VISION_TIMEOUT_MS = 15_000L;
+	private static final AtomicLong MCP_CAPTURE_REQUEST_IDS = new AtomicLong(1L);
+	private static final AtomicLong MCP_COMMAND_BATCH_IDS = new AtomicLong(1L);
 	private static final Set<UUID> COMMAND_DEBUG_ENABLED = ConcurrentHashMap.newKeySet();
 	private static final Map<UUID, Integer> COMMAND_RETRY_LIMITS = new ConcurrentHashMap<>();
 	private static final int MAX_CONTEXT_TOKENS = 16000;
@@ -217,6 +233,9 @@ public static final String MOD_ID = "gemini-ai-companion";
 	private static final int MAX_CONTINUE_STEPS = 5;
 	private static final int MAX_TOOL_STEPS = 4;
 	private static final int MAX_UNDO_SNAPSHOT_BLOCKS = 65_536;
+	private static final int MAX_MCP_DELAYED_COMMANDS = 128;
+	private static final int MAX_MCP_DELAY_TICKS = 20 * 60;
+	private static final long MCP_COMMAND_BATCH_RETENTION_MS = 5L * 60L * 1000L;
 	private static final int HISTORY_EXCHANGES_PER_PAGE = 3;
 	private static final boolean SIDEBAR_DEFAULT_ENABLED = true;
 	private static boolean SIDEBAR_ENABLED = SIDEBAR_DEFAULT_ENABLED;
@@ -306,6 +325,27 @@ public static final String MOD_ID = "gemini-ai-companion";
 			dispatcher.register(CommandManager.literal("chat")
 				.then(CommandManager.literal("undo")
 					.executes(context -> undoLastCommands(context.getSource()))));
+			dispatcher.register(CommandManager.literal("chat")
+				.then(CommandManager.literal("mcp")
+					.then(CommandManager.literal("enable")
+						.executes(context -> setMcpBridgeEnabled(context.getSource(), true)))
+					.then(CommandManager.literal("disable")
+						.executes(context -> setMcpBridgeEnabled(context.getSource(), false)))
+					.then(CommandManager.literal("status")
+						.executes(context -> showMcpBridgeStatus(context.getSource())))
+					.then(CommandManager.literal("setup")
+						.executes(context -> showMcpBridgeSetupOptions(context.getSource()))
+						.then(CommandManager.argument("client", StringArgumentType.word())
+							.executes(context -> showMcpBridgeSetup(
+								context.getSource(),
+								StringArgumentType.getString(context, "client")))))
+					.then(CommandManager.literal("token")
+						.then(CommandManager.literal("regen")
+							.executes(context -> regenerateMcpBridgeToken(context.getSource())))
+						.then(CommandManager.literal("copy")
+							.executes(context -> copyMcpBridgeToken(context.getSource())))
+						.then(CommandManager.literal("show")
+							.executes(context -> showMcpBridgeToken(context.getSource()))))));
 			dispatcher.register(CommandManager.literal("chat")
 				.then(CommandManager.literal("skill")
 					.then(CommandManager.literal("inventory")
@@ -496,9 +536,26 @@ public static final String MOD_ID = "gemini-ai-companion";
 					.executes(context -> showChatHelp(context.getSource(), StringArgumentType.getString(context, "topic")))));
 		});
 
-		ServerLifecycleEvents.SERVER_STARTED.register(GeminiCompanion::applyCommandModificationLimit);
+		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+			ACTIVE_SERVER = server;
+			LAST_SERVER_TICK_MS = System.currentTimeMillis();
+			applyCommandModificationLimit(server);
+			startOrRestartMcpBridge(server);
+		});
+		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+			stopMcpBridge();
+			LAST_SERVER_TICK_MS = 0L;
+			if (ACTIVE_SERVER == server) {
+				ACTIVE_SERVER = null;
+			}
+			PENDING_MCP_COMMAND_BATCHES.clear();
+			LAST_MCP_COMMAND_BATCH_BY_PLAYER.clear();
+		});
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
+			LAST_SERVER_TICK_MS = System.currentTimeMillis();
+			cleanupPendingMcpCaptures(LAST_SERVER_TICK_MS);
+			processPendingMcpCommandBatches(server, LAST_SERVER_TICK_MS);
 			if (THINKING_TICKS.isEmpty()) {
 				// Still allow mode indicators to render.
 			}
@@ -602,6 +659,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 			UUID playerId = handler.getPlayer().getUuid();
 			saveDeaths(playerId);
 			savePlayerSettings(playerId);
+			failPendingMcpCapturesForPlayer(playerId, "Player disconnected before vision capture completed.");
 		});
 
 		loadGlobalSettings();
@@ -810,6 +868,33 @@ public static final String MOD_ID = "gemini-ai-companion";
 		if (player == null || payload == null) {
 			return;
 		}
+		PendingMcpCapture pendingCapture = PENDING_MCP_CAPTURES.remove(payload.requestId());
+		if (pendingCapture != null) {
+			if (!pendingCapture.playerId().equals(player.getUuid())) {
+				pendingCapture.future().complete(new McpVisionCaptureResult(false, payload.mimeType(), payload.lookAt(), "", 0, "Vision capture returned for the wrong player.", ""));
+				return;
+			}
+			byte[] capture = payload.data();
+			if (capture == null || capture.length == 0) {
+				pendingCapture.future().complete(new McpVisionCaptureResult(false, payload.mimeType(), payload.lookAt(), "", 0, "Vision capture failed.", ""));
+				return;
+			}
+			if (capture.length > MAX_VISION_BYTES) {
+				pendingCapture.future().complete(new McpVisionCaptureResult(false, payload.mimeType(), payload.lookAt(), "", capture.length, "Vision image too large. Try lowering your resolution.", ""));
+				return;
+			}
+			String savedPath = saveVisionCapturePng(player.getUuid(), capture, "mcp");
+			pendingCapture.future().complete(new McpVisionCaptureResult(
+				true,
+				payload.mimeType(),
+				payload.lookAt(),
+				Base64.getEncoder().encodeToString(capture),
+				capture.length,
+				"Captured current view.",
+				savedPath
+			));
+			return;
+		}
 		VisionRequest request = PENDING_VISION.remove(player.getUuid());
 		if (request == null) {
 			VISION_STATE.remove(player.getUuid());
@@ -834,6 +919,10 @@ public static final String MOD_ID = "gemini-ai-companion";
 			player.sendMessage(Text.literal("Vision image too large. Try lowering your resolution."), false);
 			VISION_STATE.remove(player.getUuid());
 			return;
+		}
+		String savedPath = saveVisionCapturePng(player.getUuid(), image, "vision");
+		if (!savedPath.isBlank()) {
+			player.sendMessage(Text.literal("Vision PNG saved: " + savedPath), false);
 		}
 		VISION_STATE.put(player.getUuid(), "ANALYZING");
 		VisionRequest finalRequest = request;
@@ -1389,6 +1478,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 		STATUS_STATE.put(player.getUuid(), new StatusState("Cancelled.", Formatting.RED, 40));
 		PENDING_VISION.remove(player.getUuid());
 		VISION_STATE.remove(player.getUuid());
+		failPendingMcpCapturesForPlayer(player.getUuid(), "Request cancelled.");
 		source.sendFeedback(() -> Text.literal("Request cancelled."), false);
 		return 1;
 	}
@@ -1416,6 +1506,73 @@ public static final String MOD_ID = "gemini-ai-companion";
 			.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chat cancel")));
 		player.sendMessage(message.append(cancel), false);
 		state.cancelPromptSent = true;
+	}
+
+	private static void cleanupPendingMcpCaptures(long nowMs) {
+		if (PENDING_MCP_CAPTURES.isEmpty()) {
+			return;
+		}
+		for (var entry : PENDING_MCP_CAPTURES.entrySet()) {
+			PendingMcpCapture pending = entry.getValue();
+			if (pending == null) {
+				continue;
+			}
+			if (nowMs - pending.createdMs() <= VISION_TIMEOUT_MS) {
+				continue;
+			}
+			if (PENDING_MCP_CAPTURES.remove(entry.getKey(), pending)) {
+				pending.future().complete(new McpVisionCaptureResult(false, "image/png", "", "", 0, "Vision capture timed out.", ""));
+			}
+		}
+	}
+
+	private static void failPendingMcpCapturesForPlayer(UUID playerId, String message) {
+		if (playerId == null || PENDING_MCP_CAPTURES.isEmpty()) {
+			return;
+		}
+		for (var entry : PENDING_MCP_CAPTURES.entrySet()) {
+			PendingMcpCapture pending = entry.getValue();
+			if (pending == null || !playerId.equals(pending.playerId())) {
+				continue;
+			}
+			if (PENDING_MCP_CAPTURES.remove(entry.getKey(), pending)) {
+				pending.future().complete(new McpVisionCaptureResult(false, "image/png", "", "", 0, message, ""));
+			}
+		}
+	}
+
+	private static void processPendingMcpCommandBatches(MinecraftServer server, long nowMs) {
+		if (server == null || PENDING_MCP_COMMAND_BATCHES.isEmpty()) {
+			return;
+		}
+		for (var entry : PENDING_MCP_COMMAND_BATCHES.entrySet()) {
+			PendingMcpCommandBatch batch = entry.getValue();
+			if (batch == null) {
+				continue;
+			}
+			if (batch.isExpired(nowMs)) {
+				PENDING_MCP_COMMAND_BATCHES.remove(entry.getKey(), batch);
+				continue;
+			}
+			batch.process(server, nowMs);
+		}
+	}
+
+	static McpBatchStatusResult getMcpBatchStatus(ServerPlayerEntity player, String requestedBatchId) {
+		if (player == null) {
+			return new McpBatchStatusResult(false, "", false, true, 0, 0, 0, 0, List.of(), "No active player is available.", false, "No batch.");
+		}
+		String batchId = requestedBatchId == null || requestedBatchId.isBlank()
+			? LAST_MCP_COMMAND_BATCH_BY_PLAYER.get(player.getUuid())
+			: requestedBatchId.trim();
+		if (batchId == null || batchId.isBlank()) {
+			return new McpBatchStatusResult(false, "", false, true, 0, 0, 0, 0, List.of(), "No MCP command batch is available for this player.", false, "No batch.");
+		}
+		PendingMcpCommandBatch batch = PENDING_MCP_COMMAND_BATCHES.get(batchId);
+		if (batch == null) {
+			return new McpBatchStatusResult(false, batchId, false, true, 0, 0, 0, 0, List.of(), "Unknown or expired batch id.", false, "No batch.");
+		}
+		return batch.snapshot();
 	}
 
 	private static void sendSmarterModelPrompt(ServerPlayerEntity player) {
@@ -1691,6 +1848,133 @@ public static final String MOD_ID = "gemini-ai-companion";
 		}
 		String output = executeSkillCommand(player, command.toString(), false);
 		source.sendFeedback(() -> Text.literal(output), false);
+		return 1;
+	}
+
+	private static int setMcpBridgeEnabled(ServerCommandSource source, boolean enabled) {
+		if (!source.hasPermissionLevel(2)) {
+			source.sendError(Text.literal("Only operators can manage MCP bridge settings."));
+			return 0;
+		}
+		MCP_BRIDGE_ENABLED = enabled;
+		if (enabled && (MCP_BRIDGE_TOKEN == null || MCP_BRIDGE_TOKEN.isBlank())) {
+			MCP_BRIDGE_TOKEN = generateMcpBridgeToken();
+		}
+		saveGlobalSettings();
+		if (ACTIVE_SERVER != null) {
+			startOrRestartMcpBridge(ACTIVE_SERVER);
+		}
+		String message = enabled
+			? "MCP bridge enabled on 127.0.0.1:" + MCP_BRIDGE_PORT + "."
+			: "MCP bridge disabled. Health endpoint remains local-only on 127.0.0.1:" + MCP_BRIDGE_PORT + ".";
+		source.sendFeedback(() -> Text.literal(message), false);
+		if (enabled) {
+			source.sendFeedback(() -> buildCopyableMcpTokenLine("MCP bridge token", MCP_BRIDGE_TOKEN), false);
+		}
+		return 1;
+	}
+
+	private static int regenerateMcpBridgeToken(ServerCommandSource source) {
+		if (!source.hasPermissionLevel(2)) {
+			source.sendError(Text.literal("Only operators can manage MCP bridge settings."));
+			return 0;
+		}
+		MCP_BRIDGE_TOKEN = generateMcpBridgeToken();
+		saveGlobalSettings();
+		source.sendFeedback(() -> Text.literal("MCP bridge token regenerated."), false);
+		source.sendFeedback(() -> buildCopyableMcpTokenLine("MCP bridge token", MCP_BRIDGE_TOKEN), false);
+		return 1;
+	}
+
+	private static int showMcpBridgeStatus(ServerCommandSource source) {
+		if (!source.hasPermissionLevel(2)) {
+			source.sendError(Text.literal("Only operators can view MCP bridge status."));
+			return 0;
+		}
+		MinecraftCapabilityService.ServiceResult<MinecraftCapabilityService.SessionInfo> session =
+			MinecraftCapabilityService.session(source.getServer(), MCP_BRIDGE_ENABLED, MCP_BRIDGE_PORT);
+		source.sendFeedback(() -> Text.literal("MCP bridge: " + (MCP_BRIDGE_ENABLED ? "ENABLED" : "DISABLED")), false);
+		source.sendFeedback(() -> Text.literal("Bind: 127.0.0.1:" + MCP_BRIDGE_PORT + " (loopback only)"), false);
+		source.sendFeedback(() -> Text.literal("Token: " + redactMcpBridgeToken(MCP_BRIDGE_TOKEN)), false);
+		if (session.data() != null && session.data().activePlayer() != null) {
+			var player = session.data().activePlayer();
+			source.sendFeedback(() -> Text.literal("Active player: " + player.name() + " @ " + player.x() + "," + player.y() + "," + player.z()), false);
+		} else if (session.error() != null) {
+			source.sendFeedback(() -> Text.literal("Active player: " + session.error().code() + " - " + session.error().message()), false);
+		} else {
+			source.sendFeedback(() -> Text.literal("Active player: unavailable"), false);
+		}
+		return 1;
+	}
+
+	private static int showMcpBridgeSetupOptions(ServerCommandSource source) {
+		if (!source.hasPermissionLevel(2)) {
+			source.sendError(Text.literal("Only operators can view MCP setup instructions."));
+			return 0;
+		}
+		source.sendFeedback(() -> Text.literal("MCP setup targets: codex, claude-desktop, claude-code, gemini-cli, opencode, generic"), false);
+		source.sendFeedback(() -> Text.literal("Use /chat mcp setup <client> to get a ready-to-copy config block."), false);
+		if (!MCP_BRIDGE_ENABLED) {
+			source.sendFeedback(() -> Text.literal("Bridge is currently disabled. Run /chat mcp enable first."), false);
+		}
+		return 1;
+	}
+
+	private static int showMcpBridgeSetup(ServerCommandSource source, String client) {
+		if (!source.hasPermissionLevel(2)) {
+			source.sendError(Text.literal("Only operators can view MCP setup instructions."));
+			return 0;
+		}
+		if (client == null || client.isBlank()) {
+			return showMcpBridgeSetupOptions(source);
+		}
+		Path projectRoot = resolveMcpProjectRootPath();
+		Path nodeScriptPath = projectRoot.resolve("run-mcp-sidecar-node.js").normalize();
+		if (!Files.exists(nodeScriptPath)) {
+			source.sendError(Text.literal("Could not find run-mcp-sidecar-node.js at " + nodeScriptPath));
+			return 0;
+		}
+		String nodeCommand = resolveNodeCommand();
+		McpSetupBundle bundle = buildMcpSetupBundle(client, nodeCommand, nodeScriptPath.toString(), projectRoot.toString());
+		if (bundle == null) {
+			source.sendError(Text.literal("Unknown MCP client '" + client + "'. Try: codex, claude-desktop, claude-code, gemini-cli, opencode, generic"));
+			return 0;
+		}
+		source.sendFeedback(() -> Text.literal("MCP setup for " + bundle.label() + ":"), false);
+		source.sendFeedback(() -> buildCopyableTextLine("Config block", bundle.label(), bundle.payload(), "Copy " + bundle.label() + " MCP setup"), false);
+		for (String line : bundle.payload().split("\\R")) {
+			source.sendFeedback(() -> Text.literal(line).formatted(Formatting.GRAY), false);
+		}
+		source.sendFeedback(() -> Text.literal("This config auto-reads the bridge token from the local project settings. Keep the MCP sidecar on the same machine as Minecraft."), false);
+		if (!MCP_BRIDGE_ENABLED) {
+			source.sendFeedback(() -> Text.literal("Bridge is currently disabled. Run /chat mcp enable first."), false);
+		}
+		return 1;
+	}
+
+	private static int showMcpBridgeToken(ServerCommandSource source) {
+		if (!source.hasPermissionLevel(2)) {
+			source.sendError(Text.literal("Only operators can view MCP bridge tokens."));
+			return 0;
+		}
+		if (MCP_BRIDGE_TOKEN == null || MCP_BRIDGE_TOKEN.isBlank()) {
+			MCP_BRIDGE_TOKEN = generateMcpBridgeToken();
+			saveGlobalSettings();
+		}
+		source.sendFeedback(() -> buildCopyableMcpTokenLine("MCP bridge token", MCP_BRIDGE_TOKEN), false);
+		return 1;
+	}
+
+	private static int copyMcpBridgeToken(ServerCommandSource source) {
+		if (!source.hasPermissionLevel(2)) {
+			source.sendError(Text.literal("Only operators can copy MCP bridge tokens."));
+			return 0;
+		}
+		if (MCP_BRIDGE_TOKEN == null || MCP_BRIDGE_TOKEN.isBlank()) {
+			MCP_BRIDGE_TOKEN = generateMcpBridgeToken();
+			saveGlobalSettings();
+		}
+		source.sendFeedback(() -> buildCopyableMcpTokenLine("Click to copy MCP bridge token", MCP_BRIDGE_TOKEN), false);
 		return 1;
 	}
 
@@ -2040,6 +2324,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			source.sendFeedback(() -> Text.literal("/chat setup - Start server setup (OP only)."), false);
 			source.sendFeedback(() -> Text.literal("/chat perms <ops|whitelist|all> - Set who can use AI (OP)."), false);
 			source.sendFeedback(() -> Text.literal("/chat allow <player> | /chat deny <player> - Edit whitelist (OP)."), false);
+			source.sendFeedback(() -> Text.literal("/chat mcp <enable|disable|status|setup <client>|token regen|token show|token copy> - Manage the local MCP bridge (OP)."), false);
 			source.sendFeedback(() -> Text.literal("/chat status - Show setup status."), false);
 			source.sendFeedback(() -> Text.literal("/chat setsetting <key> <value> - Request a client setting change."), false);
 			source.sendFeedback(() -> Text.literal("/chathelp <command> - Show help for a command."), false);
@@ -2118,9 +2403,12 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			case "perms":
 			case "allow":
 			case "deny":
+			case "mcp":
 			case "status":
 				source.sendFeedback(() -> Text.literal("/chat perms <ops|whitelist|all> - Permission mode (OP)."), false);
 				source.sendFeedback(() -> Text.literal("/chat allow <player> | /chat deny <player> - Whitelist control."), false);
+				source.sendFeedback(() -> Text.literal("/chat mcp <enable|disable|status|setup <client>|token regen|token show|token copy> - MCP bridge control."), false);
+				source.sendFeedback(() -> Text.literal("Setup targets: codex, claude-desktop, claude-code, gemini-cli, opencode, generic"), false);
 				source.sendFeedback(() -> Text.literal("/chat status - Show setup status."), false);
 				break;
 			case "clear":
@@ -2811,17 +3099,18 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		String skill = parts[2].toLowerCase(Locale.ROOT);
 		return switch (skill) {
 			case "inventory" -> {
-				String inventory = buildInventoryContext(player, "inventory", true, Boolean.TRUE);
-				yield prefix + (inventory.isEmpty() ? "Inventory: Empty" : "Inventory: " + inventory);
+				var result = MinecraftCapabilityService.inventory(player);
+				yield prefix + (result.error() != null ? "Inventory error: " + result.error().message() : MinecraftCapabilityService.formatInventory(result.data()));
 			}
 			case "nearby" -> {
-				String nearby = buildNearbyEntitiesContext(player, "scan entities nearby", true);
-				yield prefix + (nearby.isEmpty() ? "Nearby entities: none" : "Nearby entities: " + nearby);
+				var result = MinecraftCapabilityService.nearbyEntities(player);
+				yield prefix + (result.error() != null ? "Nearby entities error: " + result.error().message() : MinecraftCapabilityService.formatNearby(result.data()));
 			}
 			case "blocks" -> {
 				String target = parts.length >= 4 ? parts[3] : "";
 				int radius = parts.length >= 5 ? parseInteger(parts[4], DEFAULT_BLOCK_SCAN_RADIUS) : DEFAULT_BLOCK_SCAN_RADIUS;
-				yield prefix + buildBlockScanSkillOutput(player, target, radius);
+				var result = MinecraftCapabilityService.scanBlocks(player, target, radius);
+				yield prefix + (result.error() != null ? "Blocks error: " + result.error().message() : MinecraftCapabilityService.formatBlocks(result.data()));
 			}
 			case "containers" -> {
 				String filter = null;
@@ -2836,20 +3125,26 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 						}
 					}
 				}
-				yield prefix + buildContainerSkillOutput(player, filter, radius);
+				var result = MinecraftCapabilityService.scanContainers(player, filter, radius);
+				yield prefix + (result.error() != null ? "Containers error: " + result.error().message() : MinecraftCapabilityService.formatContainers(result.data()));
 			}
 			case "blockdata" -> {
 				String args = parts.length >= 4 ? String.join(" ", java.util.Arrays.copyOfRange(parts, 3, parts.length)) : "";
-				yield prefix + buildBlockDataSkillOutput(player, args);
+				var result = MinecraftCapabilityService.blockData(player, args);
+				yield prefix + (result.error() != null ? "BlockData error: " + result.error().message() : MinecraftCapabilityService.formatBlockData(result.data()));
 			}
 			case "players" -> {
-				String players = buildPlayerListContext(player);
-				yield prefix + (players.isEmpty() ? "Players: none" : "Players: " + players);
+				var result = MinecraftCapabilityService.players(player.getServer());
+				yield prefix + (result.error() != null ? "Players error: " + result.error().message() : MinecraftCapabilityService.formatPlayers(result.data()));
 			}
-			case "stats" -> prefix + buildPlayerStatsContext(player);
+			case "stats" -> {
+				var result = MinecraftCapabilityService.stats(player);
+				yield prefix + (result.error() != null ? "Stats error: " + result.error().message() : MinecraftCapabilityService.formatStats(result.data()));
+			}
 			case "buildsite" -> {
 				int radius = parts.length >= 4 ? parseInteger(parts[3], VoxelBuildPlanner.DEFAULT_SITE_RADIUS) : VoxelBuildPlanner.DEFAULT_SITE_RADIUS;
-				yield prefix + VoxelBuildPlanner.summarizeBuildSite(player, radius);
+				var result = MinecraftCapabilityService.buildsite(player, radius);
+				yield prefix + (result.error() != null ? "BuildSite error: " + result.error().message() : MinecraftCapabilityService.formatBuildsite(result.data()));
 			}
 			case "settings" -> {
 				String category = parts.length >= 4 ? parts[3].toLowerCase(Locale.ROOT) : "summary";
@@ -2857,17 +3152,18 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			}
 			case "recipe", "smelt" -> {
 				String target = parts.length >= 4 ? parts[3].toLowerCase(Locale.ROOT) : "";
-				yield prefix + buildRecipeSkillOutput(player, target, skill.equals("smelt"));
+				var result = MinecraftCapabilityService.recipe(player, target, skill.equals("smelt"));
+				yield prefix + (result.error() != null ? "Recipe error: " + result.error().message() : MinecraftCapabilityService.formatRecipe(result.data(), target));
 			}
 			case "nbt" -> {
 				String target = parts.length >= 4 ? parts[3].toLowerCase(Locale.ROOT) : "mainhand";
-				ItemStack stack = resolveNbtTarget(player, parts, target);
-				yield prefix + formatNbtEntry(target, stack);
+				var result = MinecraftCapabilityService.itemComponents(player, target);
+				yield prefix + (result.error() != null ? "NBT: empty" : MinecraftCapabilityService.formatItemComponents(result.data()));
 			}
 			case "lookup" -> {
 				String target = parts.length >= 4 ? parts[3].toLowerCase(Locale.ROOT) : "mainhand";
-				ItemStack stack = resolveNbtTarget(player, parts, target);
-				yield prefix + formatLookupEntry(player, target, stack);
+				var result = MinecraftCapabilityService.itemLookup(player, target);
+				yield prefix + (result.error() != null ? "Lookup: empty" : MinecraftCapabilityService.formatItemLookup(result.data()));
 			}
 			default -> prefix + "error: unknown skill";
 		};
@@ -3681,6 +3977,421 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		return 1;
 	}
 
+	static boolean isMcpBridgeEnabled() {
+		return MCP_BRIDGE_ENABLED;
+	}
+
+	static long getLastServerTickMs() {
+		return LAST_SERVER_TICK_MS;
+	}
+
+	static String getMcpBridgeToken() {
+		return MCP_BRIDGE_TOKEN == null ? "" : MCP_BRIDGE_TOKEN;
+	}
+
+	static CompletableFuture<McpVisionCaptureResult> requestMcpCaptureView(ServerPlayerEntity player) {
+		if (player == null) {
+			return CompletableFuture.completedFuture(new McpVisionCaptureResult(false, "image/png", "", "", 0, "No active player is available.", ""));
+		}
+		failPendingMcpCapturesForPlayer(player.getUuid(), "Superseded by a newer vision capture request.");
+		long requestId = MCP_CAPTURE_REQUEST_IDS.getAndIncrement();
+		CompletableFuture<McpVisionCaptureResult> future = new CompletableFuture<>();
+		PENDING_MCP_CAPTURES.put(requestId, new PendingMcpCapture(player.getUuid(), requestId, System.currentTimeMillis(), future));
+		ServerPlayNetworking.send(player, new VisionRequestPayloadS2C(requestId));
+		return future;
+	}
+
+	static McpActionResult executeMcpCommands(ServerPlayerEntity player, List<McpCommandSpec> commands) {
+		if (player == null) {
+			return new McpActionResult(false, 0, List.of(), List.of(), "No active player is available.", false, "No commands executed.", 0, 0);
+		}
+		List<McpCommandSpec> normalizedSpecs = normalizeMcpCommandSpecs(commands);
+		if (normalizedSpecs.isEmpty()) {
+			return new McpActionResult(false, 0, List.of(), List.of(), "No commands provided.", false, "No commands executed.", 0, 0);
+		}
+		List<String> normalizedCommands = normalizedSpecs.stream().map(McpCommandSpec::command).toList();
+		PreparedCommands prepared = prepareCommandsForExecution(player, normalizedCommands);
+		CommandResult validation = validateCommands(player, prepared.executeCommands);
+		if (!validation.success) {
+			return new McpActionResult(false, 0, List.of(), List.of(), validation.errorSummary, false, "No commands executed.", 0, 0);
+		}
+		boolean hasDelays = normalizedSpecs.stream().anyMatch(spec -> spec.delayTicks() > 0);
+		if (hasDelays && prepared.executeCommands.stream().anyMatch(command -> isSkillCommand(command) || isSettingChangeCommand(command))) {
+			return new McpActionResult(false, 0, List.of(), List.of(), "Delayed MCP command batches only support real Minecraft commands, not chat skills or setting changes.", false, "No commands executed.", 0, 0);
+		}
+		if (hasDelays) {
+			return scheduleMcpCommandBatch(player, normalizedSpecs, prepared);
+		}
+		CommandResult execution = executeCommands(player, prepared.executeCommands);
+		if (execution.success) {
+			LAST_UNDO_BATCHES.put(player.getUuid(), new UndoBatch(prepared.undoCommands, prepared.undoSnapshots));
+		}
+		return new McpActionResult(
+			execution.success,
+			execution.success ? prepared.executeCommands.size() : 0,
+			List.of(),
+			filterUserOutputs(execution.outputs),
+			execution.success ? "" : execution.errorSummary,
+			execution.success && (!prepared.undoCommands.isEmpty() || !prepared.undoSnapshots.isEmpty()),
+			execution.success ? "Executed " + prepared.executeCommands.size() + " command(s)." : "No commands executed.",
+			0,
+			0,
+			List.of(),
+			false,
+			""
+		);
+	}
+
+	private static List<McpCommandSpec> normalizeMcpCommandSpecs(List<McpCommandSpec> commands) {
+		if (commands == null || commands.isEmpty()) {
+			return List.of();
+		}
+		List<McpCommandSpec> normalized = new ArrayList<>();
+		for (McpCommandSpec spec : commands) {
+			if (spec == null || spec.command() == null || spec.command().isBlank()) {
+				continue;
+			}
+			int delayTicks = Math.max(0, Math.min(MAX_MCP_DELAY_TICKS, spec.delayTicks()));
+			String command = sanitizeCommand(spec.command());
+			if (command.isBlank()) {
+				continue;
+			}
+			normalized.add(new McpCommandSpec(command, delayTicks));
+			if (normalized.size() >= MAX_MCP_DELAYED_COMMANDS) {
+				break;
+			}
+		}
+		return normalized;
+	}
+
+	private static McpActionResult scheduleMcpCommandBatch(ServerPlayerEntity player, List<McpCommandSpec> specs, PreparedCommands prepared) {
+		String batchId = "mcp-batch-" + MCP_COMMAND_BATCH_IDS.getAndIncrement();
+		List<ScheduledMcpCommand> scheduled = new ArrayList<>();
+		for (int i = 0; i < prepared.executeCommands.size(); i++) {
+			int delayTicks = i < specs.size() ? specs.get(i).delayTicks() : 0;
+			scheduled.add(new ScheduledMcpCommand(prepared.executeCommands.get(i), delayTicks));
+		}
+		PendingMcpCommandBatch batch = new PendingMcpCommandBatch(
+			batchId,
+			player.getUuid(),
+			System.currentTimeMillis(),
+			scheduled,
+			prepared.undoCommands,
+			prepared.undoSnapshots
+		);
+		PENDING_MCP_COMMAND_BATCHES.put(batchId, batch);
+		LAST_MCP_COMMAND_BATCH_BY_PLAYER.put(player.getUuid(), batchId);
+		player.sendMessage(Text.literal("Scheduled delayed MCP batch " + batchId + " with " + prepared.executeCommands.size() + " command(s).").formatted(Formatting.AQUA), false);
+		return new McpActionResult(
+			true,
+			prepared.executeCommands.size(),
+			List.of(),
+			List.of(),
+			"",
+			false,
+			"Scheduled " + prepared.executeCommands.size() + " command(s) as delayed batch " + batchId + ".",
+			0,
+			0,
+			prepared.executeCommands,
+			true,
+			batchId
+		);
+	}
+
+	static McpActionResult executeMcpBuildPlan(ServerPlayerEntity player, JsonObject requestBody) {
+		if (player == null) {
+			return new McpActionResult(false, 0, List.of(), List.of(), "No active player is available.", false, "No build executed.", 0, 0);
+		}
+		JsonObject root = requestBody;
+		if (root == null) {
+			root = new JsonObject();
+		}
+		if (!root.has("build_plan")) {
+			JsonObject wrapped = new JsonObject();
+			wrapped.add("build_plan", root.deepCopy());
+			root = wrapped;
+		}
+		VoxelBuildPlanner.BuildPlan plan = VoxelBuildPlanner.parseBuildPlan(root);
+		VoxelBuildPlanner.CompiledBuild compiled = VoxelBuildPlanner.compile(player, plan);
+		if (!compiled.valid()) {
+			return new McpActionResult(false, 0, compiled.repairs(), List.of(), compiled.error(), false, compiled.summary(), compiled.appliedRotation(), compiled.phases());
+		}
+		PreparedCommands prepared = prepareCommandsForExecution(player, compiled.commands());
+		CommandResult validation = validateCommands(player, prepared.executeCommands);
+		if (!validation.success) {
+			return new McpActionResult(false, 0, compiled.repairs(), List.of(), validation.errorSummary, false, compiled.summary(), compiled.appliedRotation(), compiled.phases());
+		}
+		CommandResult execution = executeCommands(player, prepared.executeCommands);
+		if (execution.success) {
+			LAST_UNDO_BATCHES.put(player.getUuid(), new UndoBatch(prepared.undoCommands, prepared.undoSnapshots));
+		}
+		return new McpActionResult(
+			execution.success,
+			execution.success ? prepared.executeCommands.size() : 0,
+			compiled.repairs(),
+			filterUserOutputs(execution.outputs),
+			execution.success ? "" : execution.errorSummary,
+			execution.success && (!prepared.undoCommands.isEmpty() || !prepared.undoSnapshots.isEmpty()),
+			compiled.summary(),
+			compiled.appliedRotation(),
+			compiled.phases()
+		);
+	}
+
+	static McpActionResult previewMcpBuildPlan(ServerPlayerEntity player, JsonObject requestBody) {
+		if (player == null) {
+			return new McpActionResult(false, 0, List.of(), List.of(), "No active player is available.", false, "No preview generated.", 0, 0);
+		}
+		JsonObject root = requestBody;
+		if (root == null) {
+			root = new JsonObject();
+		}
+		if (!root.has("build_plan")) {
+			JsonObject wrapped = new JsonObject();
+			wrapped.add("build_plan", root.deepCopy());
+			root = wrapped;
+		}
+		VoxelBuildPlanner.BuildPlan plan = VoxelBuildPlanner.parseBuildPlan(root);
+		VoxelBuildPlanner.CompiledBuild compiled = VoxelBuildPlanner.compile(player, plan);
+		if (!compiled.valid()) {
+			return new McpActionResult(false, 0, compiled.repairs(), List.of(), compiled.error(), false, compiled.summary(), compiled.appliedRotation(), compiled.phases(), List.of());
+		}
+		PreparedCommands prepared = prepareCommandsForExecution(player, compiled.commands());
+		CommandResult validation = validateCommands(player, prepared.executeCommands);
+		if (!validation.success) {
+			return new McpActionResult(false, 0, compiled.repairs(), List.of(), validation.errorSummary, false, compiled.summary(), compiled.appliedRotation(), compiled.phases(), prepared.executeCommands);
+		}
+		return new McpActionResult(
+			true,
+			prepared.executeCommands.size(),
+			compiled.repairs(),
+			List.of(),
+			"",
+			false,
+			"Preview ready. " + prepared.executeCommands.size() + " command(s) would execute.",
+			compiled.appliedRotation(),
+			compiled.phases(),
+			prepared.executeCommands
+		);
+	}
+
+	static McpActionResult executeMcpUndo(ServerPlayerEntity player) {
+		if (player == null) {
+			return new McpActionResult(false, 0, List.of(), List.of(), "No active player is available.", false, "Nothing to undo.", 0, 0);
+		}
+		UndoBatch batch = LAST_UNDO_BATCHES.get(player.getUuid());
+		if (batch == null || (batch.commands().isEmpty() && batch.snapshots().isEmpty())) {
+			return new McpActionResult(false, 0, List.of(), List.of(), "Nothing to undo.", false, "Nothing to undo.", 0, 0);
+		}
+		CommandResult result = batch.commands().isEmpty()
+			? new CommandResult(true, "", List.of())
+			: executeCommands(player, batch.commands());
+		RestoreResult restore = batch.snapshots().isEmpty()
+			? new RestoreResult(true, 0, "")
+			: restoreSnapshots(player.getServer(), batch.snapshots());
+		LAST_UNDO_BATCHES.remove(player.getUuid());
+		boolean success = result.success && restore.success();
+		String summary = restore.restoredBlocks() > 0
+			? "Undo complete. Restored " + restore.restoredBlocks() + " block" + (restore.restoredBlocks() == 1 ? "" : "s") + "."
+			: "Undo complete.";
+		String error = "";
+		if (!success) {
+			List<String> issues = new ArrayList<>();
+			if (!result.success && result.errorSummary != null && !result.errorSummary.isBlank()) {
+				issues.add(result.errorSummary);
+			}
+			if (!restore.success() && restore.errorSummary() != null && !restore.errorSummary().isBlank()) {
+				issues.add(restore.errorSummary());
+			}
+			error = String.join(" | ", issues);
+		}
+		return new McpActionResult(success, restore.restoredBlocks(), List.of(), filterUserOutputs(result.outputs), error, false, summary, 0, 0);
+	}
+
+	static McpActionResult executeMcpHighlights(ServerPlayerEntity player, List<Highlight> highlights) {
+		if (player == null) {
+			return new McpActionResult(false, 0, List.of(), List.of(), "No active player is available.", false, "No highlights emitted.", 0, 0);
+		}
+		if (highlights == null || highlights.isEmpty()) {
+			return new McpActionResult(false, 0, List.of(), List.of(), "No highlights were provided.", false, "No highlights emitted.", 0, 0);
+		}
+		sendHighlights(player, highlights);
+		return new McpActionResult(true, highlights.size(), List.of(), List.of(), "", false, "Sent " + highlights.size() + " highlight(s).", 0, 0);
+	}
+
+	private static synchronized void startOrRestartMcpBridge(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+		stopMcpBridge();
+		try {
+			MCP_BRIDGE = new McpBridgeServer(server, MCP_BRIDGE_PORT);
+			MCP_BRIDGE.start();
+			LOGGER.info("MCP bridge listening on 127.0.0.1:{} (enabled={})", MCP_BRIDGE_PORT, MCP_BRIDGE_ENABLED);
+		} catch (Exception e) {
+			MCP_BRIDGE = null;
+			LOGGER.warn("Failed to start MCP bridge on port {}: {}", MCP_BRIDGE_PORT, e.getMessage());
+		}
+	}
+
+	private static synchronized void stopMcpBridge() {
+		if (MCP_BRIDGE != null) {
+			MCP_BRIDGE.stop();
+			MCP_BRIDGE = null;
+		}
+	}
+
+	private static String generateMcpBridgeToken() {
+		byte[] bytes = new byte[24];
+		MCP_TOKEN_RANDOM.nextBytes(bytes);
+		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+	}
+
+	private static String redactMcpBridgeToken(String token) {
+		if (token == null || token.isBlank()) {
+			return "(missing)";
+		}
+		if (token.length() <= 10) {
+			return "********";
+		}
+		return token.substring(0, 6) + "..." + token.substring(token.length() - 4);
+	}
+
+	private static Path resolveMcpProjectRootPath() {
+		List<Path> candidates = new ArrayList<>();
+		Path cwd = Path.of("").toAbsolutePath().normalize();
+		candidates.add(cwd);
+		Path current = cwd;
+		for (int i = 0; i < 6; i++) {
+			Path parent = current.getParent();
+			if (parent == null || parent.equals(current)) {
+				break;
+			}
+			candidates.add(parent);
+			current = parent;
+		}
+		try {
+			URI codeUri = GeminiCompanion.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+			Path codePath = Path.of(codeUri).toAbsolutePath().normalize();
+			if (Files.isRegularFile(codePath)) {
+				codePath = codePath.getParent();
+			}
+			if (codePath != null) {
+				candidates.add(codePath);
+				current = codePath;
+				for (int i = 0; i < 6; i++) {
+					Path parent = current.getParent();
+					if (parent == null || parent.equals(current)) {
+						break;
+					}
+					candidates.add(parent);
+					current = parent;
+				}
+			}
+		} catch (Exception ignored) {
+		}
+		for (Path candidate : candidates) {
+			if (candidate != null && Files.exists(candidate.resolve("run-mcp-sidecar-node.js"))) {
+				return candidate;
+			}
+		}
+		return cwd;
+	}
+
+	private static String resolveNodeCommand() {
+		Path pinnedWindowsNode = Path.of("C:\\Program Files\\nodejs\\node.exe");
+		if (Files.exists(pinnedWindowsNode)) {
+			return pinnedWindowsNode.toString();
+		}
+		return "node";
+	}
+
+	private static McpSetupBundle buildMcpSetupBundle(String rawClient, String nodeCommand, String nodeScriptPath, String projectRoot) {
+		String client = rawClient.toLowerCase(Locale.ROOT).trim();
+		String normalized = client.replace("_", "-");
+		String tomlNode = quoteToml(nodeCommand);
+		String tomlScript = quoteToml(nodeScriptPath);
+		String tomlRoot = quoteToml(projectRoot);
+		String jsonNode = quoteJson(nodeCommand);
+		String jsonScript = quoteJson(nodeScriptPath);
+		String jsonRoot = quoteJson(projectRoot);
+		String cliNode = quoteCli(nodeCommand);
+		String cliScript = quoteCli(nodeScriptPath);
+		String cliRoot = quoteCli(projectRoot);
+		return switch (normalized) {
+			case "codex", "codex-cli" -> new McpSetupBundle("Codex CLI", String.join("\n",
+				"[mcp_servers.gemini-minecraft]",
+				"command = " + tomlNode,
+				"args = [",
+				"  " + tomlScript + ",",
+				"  \"--project-root\",",
+				"  " + tomlRoot,
+				"]",
+				"startup_timeout_sec = 60"));
+			case "claude-desktop", "claude", "generic", "json" -> new McpSetupBundle("Claude Desktop / Generic JSON", String.join("\n",
+				"{",
+				"  \"mcpServers\": {",
+				"    \"gemini-minecraft\": {",
+				"      \"command\": " + jsonNode + ",",
+				"      \"args\": [",
+				"        " + jsonScript + ",",
+				"        \"--project-root\",",
+				"        " + jsonRoot,
+				"      ]",
+				"    }",
+				"  }",
+				"}"));
+			case "claude-code" -> new McpSetupBundle("Claude Code", "claude mcp add gemini-minecraft -- " + cliNode + " " + cliScript + " --project-root " + cliRoot);
+			case "gemini-cli", "gemini" -> new McpSetupBundle("Gemini CLI", "gemini mcp add gemini-minecraft " + cliNode + " --trust -- " + cliScript + " --project-root " + cliRoot);
+			case "opencode" -> new McpSetupBundle("OpenCode", String.join("\n",
+				"{",
+				"  \"mcp\": {",
+				"    \"gemini-minecraft\": {",
+				"      \"type\": \"local\",",
+				"      \"enabled\": true,",
+				"      \"command\": [",
+				"        " + jsonNode + ",",
+				"        " + jsonScript + ",",
+				"        \"--project-root\",",
+				"        " + jsonRoot,
+				"      ]",
+				"    }",
+				"  }",
+				"}"));
+			default -> null;
+		};
+	}
+
+	private static String quoteToml(String value) {
+		return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+	}
+
+	private static String quoteJson(String value) {
+		return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+	}
+
+	private static String quoteCli(String value) {
+		return "\"" + value.replace("\"", "\\\"") + "\"";
+	}
+
+	private static Text buildCopyableMcpTokenLine(String label, String token) {
+		return buildCopyableTextLine(label, redactMcpBridgeToken(token), token, "Copy MCP bridge token")
+			.styled(style -> style.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal(token))));
+	}
+
+	private static MutableText buildCopyableTextLine(String label, String visibleValue, String clipboardValue, String hoverText) {
+		MutableText line = Text.literal(label + ": ").formatted(Formatting.GRAY);
+		MutableText value = Text.literal(visibleValue).formatted(Formatting.WHITE);
+		MutableText copy = Text.literal("[Copy]").formatted(Formatting.AQUA)
+			.styled(style -> style
+				.withUnderline(true)
+				.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, clipboardValue))
+				.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal(hoverText))));
+		return line.append(value).append(Text.literal(" ")).append(copy);
+	}
+
+	private record McpSetupBundle(String label, String payload) {}
+
 	private static PreparedCommands prepareCommandsForExecution(ServerPlayerEntity player, List<String> commands) {
 		List<String> execute = new ArrayList<>();
 		List<String> undo = new ArrayList<>();
@@ -3932,32 +4643,14 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 
 	private static CommandResult executeCommandOnServerThread(ServerPlayerEntity player, String command) {
 		var server = player.getServer();
+		if (server == null) {
+			return new CommandResult(false, "Minecraft server is unavailable.", List.of());
+		}
+		if (server.isOnThread()) {
+			return executeCommandNow(server, player, command);
+		}
 		var future = new java.util.concurrent.CompletableFuture<CommandResult>();
-		server.execute(() -> {
-			List<String> messages = new ArrayList<>();
-			CommandOutputCollector output = new CommandOutputCollector(messages);
-			var source = server.getCommandSource()
-				.withEntity(player)
-				.withPosition(player.getPos())
-				.withWorld(player.getServerWorld())
-				.withLevel(4)
-				.withOutput(output);
-
-			try {
-				server.getCommandManager().executeWithPrefix(source, command);
-			} catch (Exception e) {
-				String msg = e.getMessage() == null ? ("Command failed: " + command) : e.getMessage();
-				future.complete(new CommandResult(false, msg, messages));
-				return;
-			}
-
-			String errorMessage = findErrorMessage(messages);
-			if (errorMessage != null) {
-				future.complete(new CommandResult(false, "Command error: " + errorMessage, messages));
-			} else {
-				future.complete(new CommandResult(true, "", messages));
-			}
-		});
+		server.execute(() -> future.complete(executeCommandNow(server, player, command)));
 
 		try {
 			return future.get();
@@ -3965,6 +4658,30 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			String msg = e.getMessage() == null ? ("Command failed: " + command) : e.getMessage();
 			return new CommandResult(false, msg, List.of());
 		}
+	}
+
+	private static CommandResult executeCommandNow(MinecraftServer server, ServerPlayerEntity player, String command) {
+		List<String> messages = new ArrayList<>();
+		CommandOutputCollector output = new CommandOutputCollector(messages);
+		var source = server.getCommandSource()
+			.withEntity(player)
+			.withPosition(player.getPos())
+			.withWorld(player.getServerWorld())
+			.withLevel(4)
+			.withOutput(output);
+
+		try {
+			server.getCommandManager().executeWithPrefix(source, command);
+		} catch (Exception e) {
+			String msg = e.getMessage() == null ? ("Command failed: " + command) : e.getMessage();
+			return new CommandResult(false, msg, messages);
+		}
+
+		String errorMessage = findErrorMessage(messages);
+		if (errorMessage != null) {
+			return new CommandResult(false, "Command error: " + errorMessage, messages);
+		}
+		return new CommandResult(true, "", messages);
 	}
 
 	private static String findErrorMessage(List<String> messages) {
@@ -4183,7 +4900,51 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		if (trimmed.contains("\\r")) {
 			trimmed = trimmed.replace("\\r", "\\\\r");
 		}
+		trimmed = decodeUnicodeEscapes(trimmed);
+		trimmed = normalizeEffectGiveDuration(trimmed);
 		return trimmed;
+	}
+
+	private static String decodeUnicodeEscapes(String value) {
+		if (value == null || !value.contains("\\u")) {
+			return value == null ? "" : value;
+		}
+		StringBuilder out = new StringBuilder(value.length());
+		for (int i = 0; i < value.length(); i++) {
+			char ch = value.charAt(i);
+			if (ch == '\\' && i + 5 < value.length() && value.charAt(i + 1) == 'u') {
+				String hex = value.substring(i + 2, i + 6);
+				try {
+					out.append((char) Integer.parseInt(hex, 16));
+					i += 5;
+					continue;
+				} catch (NumberFormatException ignored) {
+					// fall through
+				}
+			}
+			out.append(ch);
+		}
+		return out.toString();
+	}
+
+	private static String normalizeEffectGiveDuration(String command) {
+		if (command == null || command.isBlank()) {
+			return command == null ? "" : command;
+		}
+		String[] parts = command.split("\\s+");
+		if (parts.length < 5 || !"effect".equals(parts[0]) || !"give".equals(parts[1])) {
+			return command;
+		}
+		try {
+			int duration = Integer.parseInt(parts[4]);
+			if (duration >= 1) {
+				return command;
+			}
+			parts[4] = "1";
+			return String.join(" ", parts);
+		} catch (NumberFormatException ignored) {
+			return command;
+		}
 	}
 
 	private static void applyGeminiResponseSchema(JsonObject generationConfig) {
@@ -6065,15 +6826,200 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 
 	private record CommandResult(boolean success, String errorSummary, List<String> outputs) {}
 
+	record McpCommandSpec(String command, int delayTicks) {}
+
 	private record PreparedCommands(List<String> executeCommands, List<String> undoCommands, List<BlockUndoSnapshot> undoSnapshots) {}
 
 	private record UndoBatch(List<String> commands, List<BlockUndoSnapshot> snapshots) {}
+
+	private record ScheduledMcpCommand(String command, int delayTicks) {}
 
 	private record BlockUndoSnapshot(RegistryKey<World> worldKey, BlockPos pos, BlockState state, NbtCompound blockEntityNbt) {}
 
 	private record AffectedBlocks(List<BlockPos> positions, boolean overflow) {}
 
 	private record RestoreResult(boolean success, int restoredBlocks, String errorSummary) {}
+
+	record McpActionResult(
+		boolean success,
+		int applied,
+		List<String> repairs,
+		List<String> outputs,
+		String error,
+		boolean undoAvailable,
+		String summary,
+		int appliedRotation,
+		int phaseCount,
+		List<String> previewCommands,
+		boolean pending,
+		String batchId
+	) {
+		McpActionResult(
+			boolean success,
+			int applied,
+			List<String> repairs,
+			List<String> outputs,
+			String error,
+			boolean undoAvailable,
+			String summary,
+			int appliedRotation,
+			int phaseCount
+		) {
+			this(success, applied, repairs, outputs, error, undoAvailable, summary, appliedRotation, phaseCount, List.of(), false, "");
+		}
+
+		McpActionResult(
+			boolean success,
+			int applied,
+			List<String> repairs,
+			List<String> outputs,
+			String error,
+			boolean undoAvailable,
+			String summary,
+			int appliedRotation,
+			int phaseCount,
+			List<String> previewCommands
+		) {
+			this(success, applied, repairs, outputs, error, undoAvailable, summary, appliedRotation, phaseCount, previewCommands, false, "");
+		}
+	}
+
+	record McpBatchStatusResult(
+		boolean success,
+		String batchId,
+		boolean pending,
+		boolean completed,
+		int totalCommands,
+		int applied,
+		int failed,
+		int nextIndex,
+		List<String> outputs,
+		String error,
+		boolean undoAvailable,
+		String summary
+	) {}
+
+	record McpVisionCaptureResult(
+		boolean success,
+		String mimeType,
+		String lookAt,
+		String imageBase64,
+		int byteLength,
+		String summary,
+		String imagePath
+	) {}
+
+	private record PendingMcpCapture(UUID playerId, long requestId, long createdMs, CompletableFuture<McpVisionCaptureResult> future) {}
+
+	private static final class PendingMcpCommandBatch {
+		private final String batchId;
+		private final UUID playerId;
+		private final long createdMs;
+		private final List<ScheduledMcpCommand> commands;
+		private final List<String> undoCommands;
+		private final List<BlockUndoSnapshot> undoSnapshots;
+		private final List<String> outputs = new ArrayList<>();
+		private final List<String> errors = new ArrayList<>();
+		private int nextIndex = 0;
+		private int applied = 0;
+		private int failed = 0;
+		private long nextDueMs;
+		private boolean completed = false;
+		private boolean undoStored = false;
+
+		private PendingMcpCommandBatch(
+			String batchId,
+			UUID playerId,
+			long createdMs,
+			List<ScheduledMcpCommand> commands,
+			List<String> undoCommands,
+			List<BlockUndoSnapshot> undoSnapshots
+		) {
+			this.batchId = batchId;
+			this.playerId = playerId;
+			this.createdMs = createdMs;
+			this.commands = commands == null ? List.of() : List.copyOf(commands);
+			this.undoCommands = undoCommands == null ? List.of() : List.copyOf(undoCommands);
+			this.undoSnapshots = undoSnapshots == null ? List.of() : List.copyOf(undoSnapshots);
+			this.nextDueMs = createdMs + (this.commands.isEmpty() ? 0L : this.commands.get(0).delayTicks() * 50L);
+		}
+
+		private synchronized boolean isExpired(long nowMs) {
+			return completed && nowMs - createdMs > MCP_COMMAND_BATCH_RETENTION_MS;
+		}
+
+		private synchronized McpBatchStatusResult snapshot() {
+			String error = errors.isEmpty() ? "" : String.join(" | ", errors);
+			String summary;
+			if (!completed) {
+				summary = "Batch " + batchId + " is pending (" + nextIndex + "/" + commands.size() + " commands processed).";
+			} else if (failed > 0) {
+				summary = "Batch " + batchId + " completed with " + applied + " applied and " + failed + " failed.";
+			} else {
+				summary = "Batch " + batchId + " completed successfully.";
+			}
+			return new McpBatchStatusResult(
+				error.isEmpty(),
+				batchId,
+				!completed,
+				completed,
+				commands.size(),
+				applied,
+				failed,
+				nextIndex,
+				List.copyOf(outputs),
+				error,
+				undoStored,
+				summary
+			);
+		}
+
+		private synchronized void process(MinecraftServer server, long nowMs) {
+			if (completed || server == null || nowMs < nextDueMs) {
+				return;
+			}
+			ServerPlayerEntity player = server.getPlayerManager().getPlayer(playerId);
+			if (player == null) {
+				errors.add("Player disconnected before delayed command batch completed.");
+				completed = true;
+				return;
+			}
+			while (!completed && nextIndex < commands.size() && nowMs >= nextDueMs) {
+				ScheduledMcpCommand scheduled = commands.get(nextIndex);
+				CommandResult result = executeCommandNow(server, player, scheduled.command());
+				if (result.outputs() != null && !result.outputs().isEmpty()) {
+					outputs.addAll(result.outputs());
+				}
+				if (!result.success()) {
+					errors.add(result.errorSummary());
+					failed++;
+				} else {
+					applied++;
+					if (commandIndicatesAirReplace(scheduled.command(), result.outputs())) {
+						errors.add("Command error: target slot was empty.");
+						failed++;
+					}
+				}
+				nextIndex++;
+				if (nextIndex >= commands.size()) {
+					completed = true;
+					break;
+				}
+				nextDueMs += Math.max(0L, commands.get(nextIndex).delayTicks() * 50L);
+			}
+			if (completed && applied > 0 && !undoStored && (!undoCommands.isEmpty() || !undoSnapshots.isEmpty())) {
+				LAST_UNDO_BATCHES.put(playerId, new UndoBatch(undoCommands, undoSnapshots));
+				undoStored = true;
+			}
+			if (completed) {
+				if (failed > 0) {
+					player.sendMessage(Text.literal("Delayed MCP batch " + batchId + " finished with " + applied + " applied and " + failed + " failed.").formatted(Formatting.RED), false);
+				} else {
+					player.sendMessage(Text.literal("Delayed MCP batch " + batchId + " completed.").formatted(Formatting.GREEN), false);
+				}
+			}
+		}
+	}
 
 	private static final class ModeState {
 		private final String label;
@@ -6773,6 +7719,10 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		return Path.of("run", "ai-deaths");
 	}
 
+	private static Path visionCaptureDir() {
+		return Path.of("run", "vision-captures");
+	}
+
 	private static Path deathPath(UUID playerId) {
 		return deathDir().resolve(playerId.toString() + ".json");
 	}
@@ -6835,6 +7785,25 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 
 	private static Path globalSettingsPath() {
 		return settingsDir().resolve("global.json");
+	}
+
+	private static String saveVisionCapturePng(UUID playerId, byte[] pngBytes, String prefix) {
+		if (pngBytes == null || pngBytes.length == 0) {
+			return "";
+		}
+		try {
+			Path dir = visionCaptureDir();
+			Files.createDirectories(dir);
+			String safePrefix = (prefix == null || prefix.isBlank()) ? "vision" : prefix.replaceAll("[^a-zA-Z0-9_-]", "_");
+			String playerPart = playerId == null ? "unknown" : playerId.toString().replace("-", "").substring(0, 8);
+			String timestamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneId.systemDefault()).format(Instant.now());
+			Path out = dir.resolve(safePrefix + "-" + playerPart + "-" + timestamp + ".png");
+			Files.write(out, pngBytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+			return out.toAbsolutePath().normalize().toString();
+		} catch (Exception e) {
+			LOGGER.warn("Failed to save vision PNG: {}", e.getMessage());
+			return "";
+		}
 	}
 
 	private static void loadPlayerSettings(UUID playerId) {
@@ -6932,6 +7901,25 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 					}
 				}
 			}
+			if (obj.has("mcpBridgeEnabled")) {
+				MCP_BRIDGE_ENABLED = obj.get("mcpBridgeEnabled").getAsBoolean();
+			}
+			if (obj.has("mcpPort")) {
+				int parsed = obj.get("mcpPort").getAsInt();
+				if (parsed > 0 && parsed <= 65535) {
+					MCP_BRIDGE_PORT = parsed;
+				}
+			}
+			if (obj.has("mcpToken")) {
+				MCP_BRIDGE_TOKEN = obj.get("mcpToken").getAsString();
+			}
+			if (obj.has("mcpLoopbackOnly")) {
+				// v1 is fixed to loopback-only; persisted for external inspection only.
+			}
+			if (MCP_BRIDGE_ENABLED && (MCP_BRIDGE_TOKEN == null || MCP_BRIDGE_TOKEN.isBlank())) {
+				MCP_BRIDGE_TOKEN = generateMcpBridgeToken();
+				saveGlobalSettings();
+			}
 		} catch (Exception e) {
 			LOGGER.warn("Failed to load global settings: {}", e.getMessage());
 		}
@@ -6948,6 +7936,10 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 				whitelist.add(id.toString());
 			}
 			obj.add("whitelist", whitelist);
+			obj.addProperty("mcpBridgeEnabled", MCP_BRIDGE_ENABLED);
+			obj.addProperty("mcpPort", MCP_BRIDGE_PORT);
+			obj.addProperty("mcpToken", MCP_BRIDGE_TOKEN == null ? "" : MCP_BRIDGE_TOKEN);
+			obj.addProperty("mcpLoopbackOnly", MCP_LOOPBACK_ONLY);
 			Files.createDirectories(settingsDir());
 			Files.writeString(
 				globalSettingsPath(),

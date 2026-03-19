@@ -1,0 +1,35 @@
+plugins {
+	id 'application'
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'com.google.code.gson:gson:2.13.1'
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+application {
+	mainClass = 'com.aaron.gemini.mcp.McpSidecarMain'
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 21
+}
+
+jar {
+	archiveBaseName = 'gemini-minecraft-mcp-sidecar'
+	manifest {
+		attributes 'Main-Class': application.mainClass.get()
+	}
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	from {
+		configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+	}
+}

@@ -8,3 +8,6 @@ pluginManagement {
 		gradlePluginPortal()
 	}
 }
+
+rootProject.name = 'gemini-minecraft'
+include 'mcp-sidecar'
