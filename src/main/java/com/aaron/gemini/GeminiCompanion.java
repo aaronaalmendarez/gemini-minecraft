@@ -2657,6 +2657,53 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		return !filterExecutableCommands(message.commands, player).isEmpty();
 	}
 
+	private static String buildPreviewRetryContext(VoxelBuildPlanner.CompiledBuild compiledBuild, List<String> previewCommands, String prefix) {
+		List<String> parts = new ArrayList<>();
+		if (prefix != null && !prefix.isBlank()) {
+			parts.add(prefix.trim());
+		}
+		if (compiledBuild != null) {
+			if (compiledBuild.summary() != null && !compiledBuild.summary().isBlank()) {
+				parts.add("Preview summary: " + compiledBuild.summary());
+			}
+			if (compiledBuild.resolvedOrigin() != null) {
+				VoxelBuildPlanner.GridPoint origin = compiledBuild.resolvedOrigin();
+				parts.add("Resolved origin: " + origin.x() + ", " + origin.y() + ", " + origin.z());
+			}
+			if (compiledBuild.appliedRotation() != 0) {
+				parts.add("Applied rotation: " + compiledBuild.appliedRotation());
+			}
+			if (compiledBuild.phases() > 0) {
+				parts.add("Phase count: " + compiledBuild.phases());
+			}
+			if (compiledBuild.autoFixAvailable()) {
+				parts.add("Auto-fix is available for this preview.");
+			}
+			if (compiledBuild.issues() != null && !compiledBuild.issues().isEmpty()) {
+				List<String> issueParts = new ArrayList<>();
+				for (int i = 0; i < Math.min(4, compiledBuild.issues().size()); i++) {
+					VoxelBuildPlanner.SupportIssue issue = compiledBuild.issues().get(i);
+					issueParts.add(issue.cuboid() + ": " + issue.issue() + ", gap=" + issue.gapBelow() + ", suggestedY=" + issue.suggestedY());
+				}
+				parts.add("Preview issues: " + String.join(" | ", issueParts));
+			}
+			if (compiledBuild.repairs() != null && !compiledBuild.repairs().isEmpty()) {
+				parts.add("Preview repairs: " + String.join(" | ", compiledBuild.repairs()));
+			}
+			if (compiledBuild.error() != null && !compiledBuild.error().isBlank()) {
+				parts.add("Preview error: " + compiledBuild.error());
+			}
+		}
+		if (previewCommands != null && !previewCommands.isEmpty()) {
+			int previewCount = Math.min(6, previewCommands.size());
+			parts.add("Validated preview commands: " + String.join(" | ", previewCommands.subList(0, previewCount)));
+			if (previewCommands.size() > previewCount) {
+				parts.add("Preview command count: " + previewCommands.size());
+			}
+		}
+		return String.join(". ", parts);
+	}
+
 	private static ModeMessage handleCommandMode(
 		ServerCommandSource source,
 		ServerPlayerEntity player,
@@ -2674,6 +2721,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			setRetryStats(player, attempt - 1);
 			List<String> executableCommands = new ArrayList<>();
 			VoxelBuildPlanner.CompiledBuild compiledBuild = null;
+			PreparedCommands prepared = null;
 			if (current.buildPlan() != null) {
 				compiledBuild = VoxelBuildPlanner.compile(player, current.buildPlan());
 				if (!compiledBuild.valid()) {
@@ -2683,14 +2731,13 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 					}
 					LOGGER.info("AI build retry {}/{} for player {}. Errors: {}", attempt, retryLimit, player.getName().getString(), compiledBuild.error());
 					setStatus(player, "AI encountered a build-plan error, retrying (" + attempt + "/" + retryLimit + ")...", Formatting.RED);
-					String repairContext = compiledBuild.repairs().isEmpty() ? "" : " Repairs: " + String.join(" | ", compiledBuild.repairs());
-						String schemaHint =
-							" Supported build_plan schema: " +
-							"cuboids:[{block:\"oak_planks\",from:{x:0,y:0,z:0},to:{x:4,y:2,z:4}}] or " +
-							"cuboids:[{block:\"oak_planks\",location:{x:0,y:0,z:0},size:{x:5,y:3,z:5},fill:\"hollow\"}] or " +
-							"blocks:[{block:\"oak_door\",pos:{x:2,y:1,z:0},properties:{facing:\"south\"}}] or " +
-							"steps:[{phase:\"foundation\",plan:{cuboids:[{block:\"stone_bricks\",from:{x:0,y:0,z:0},to:{x:4,y:0,z:4}}]}},{phase:\"walls\",plan:{cuboids:[{block:\"oak_planks\",start:{x:0,y:1,z:0},size:{x:5,y:3,z:5},hollow:true}]}}].";
-					String errorContext = "Build plan errors: " + compiledBuild.error() + repairContext + schemaHint;
+					String schemaHint =
+						" Supported build_plan schema: " +
+						"cuboids:[{block:\"oak_planks\",from:{x:0,y:0,z:0},to:{x:4,y:2,z:4}}] or " +
+						"cuboids:[{block:\"oak_planks\",location:{x:0,y:0,z:0},size:{x:5,y:3,z:5},fill:\"hollow\"}] or " +
+						"blocks:[{block:\"oak_door\",pos:{x:2,y:1,z:0},properties:{facing:\"south\"}}] or " +
+						"steps:[{phase:\"foundation\",plan:{cuboids:[{block:\"stone_bricks\",from:{x:0,y:0,z:0},to:{x:4,y:0,z:4}}]}},{phase:\"walls\",plan:{cuboids:[{block:\"oak_planks\",start:{x:0,y:1,z:0},size:{x:5,y:3,z:5},hollow:true}]}}].";
+					String errorContext = buildPreviewRetryContext(compiledBuild, List.of(), "Build preview failed.") + ". " + schemaHint;
 					current = callGeminiSafely(apiKey, prompt, context, history, errorContext, modelChoice);
 					if (!"COMMAND".equals(current.mode)) {
 						return current;
@@ -2703,7 +2750,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			if (executableCommands.isEmpty()) {
 				return new ModeMessage("ASK", current.message, List.of(), current.searchUsed, current.sources, current.highlights);
 			}
-			PreparedCommands prepared = prepareCommandsForExecution(player, executableCommands);
+			prepared = prepareCommandsForExecution(player, executableCommands);
 			CommandResult validation = validateCommands(player, prepared.executeCommands);
 			if (!validation.success) {
 				if (attempt == retryLimit) {
@@ -2713,7 +2760,9 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 
 				LOGGER.info("AI command retry {}/{} for player {}. Validation errors: {}", attempt, retryLimit, player.getName().getString(), validation.errorSummary);
 				setStatus(player, "AI encountered an error, retrying (" + attempt + "/" + retryLimit + ")...", Formatting.RED);
-				String errorContext = "Command errors: " + validation.errorSummary;
+				String errorContext = compiledBuild != null
+					? buildPreviewRetryContext(compiledBuild, prepared.executeCommands, "Build preview validation failed. Command errors: " + validation.errorSummary)
+					: "Command errors: " + validation.errorSummary;
 				current = callGeminiSafely(apiKey, prompt, context, history, errorContext, modelChoice);
 				if (!"COMMAND".equals(current.mode)) {
 					return current;
@@ -5652,37 +5701,23 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		JsonObject content = new JsonObject();
 		content.addProperty("role", "user");
 		JsonArray parts = new JsonArray();
+		JsonObject promptPart = new JsonObject();
+		promptPart.addProperty("text", "Generate a transcript of the speech. Return only the transcript text.");
+		parts.add(promptPart);
 		JsonObject audioPart = new JsonObject();
 		JsonObject inlineData = new JsonObject();
 		inlineData.addProperty("mime_type", mimeType == null || mimeType.isBlank() ? "audio/wav" : mimeType);
 		inlineData.addProperty("data", Base64.getEncoder().encodeToString(audioBytes));
 		audioPart.add("inline_data", inlineData);
 		parts.add(audioPart);
-		JsonObject promptPart = new JsonObject();
-		promptPart.addProperty("text", "Transcribe the speech to plain text. Return only the transcript.");
-		parts.add(promptPart);
 		content.add("parts", parts);
 		contents.add(content);
 		request.add("contents", contents);
 
-		JsonObject generationConfig = new JsonObject();
-		JsonObject thinkingConfig = new JsonObject();
-		thinkingConfig.addProperty("thinkingLevel", "minimal");
-		generationConfig.add("thinkingConfig", thinkingConfig);
-		applyGeminiResponseSchema(generationConfig);
-		request.add("generationConfig", generationConfig);
-
-		String body = GSON.toJson(request);
-		String modelId = ModelChoice.FLASH.modelId;
-		HttpRequest httpRequest = HttpRequest.newBuilder()
-			.uri(URI.create(GEMINI_ENDPOINT_BASE + modelId + ":generateContent?key=" + apiKey))
-			.header("Content-Type", "application/json; charset=utf-8")
-			.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-			.build();
-
-		HttpResponse<String> response = HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+		String modelId = "gemini-2.5-flash";
+		HttpResponse<String> response = sendWithRetries(apiKey, modelId, request);
 		if (response.statusCode() < 200 || response.statusCode() >= 300) {
-			throw new IllegalStateException("HTTP " + response.statusCode());
+			throw new IllegalStateException("HTTP " + response.statusCode() + " - " + summarizeGeminiErrorBody(response.body()));
 		}
 
 		JsonObject json = GSON.fromJson(response.body(), JsonObject.class);
@@ -5699,11 +5734,44 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		if (responseParts == null || responseParts.isEmpty()) {
 			return "";
 		}
-		JsonObject firstPart = responseParts.get(0).getAsJsonObject();
-		if (!firstPart.has("text")) {
-			return "";
+		StringBuilder transcript = new StringBuilder();
+		for (JsonElement element : responseParts) {
+			if (element == null || !element.isJsonObject()) {
+				continue;
+			}
+			JsonObject responsePart = element.getAsJsonObject();
+			if (responsePart.has("text")) {
+				String text = responsePart.get("text").getAsString();
+				if (!text.isBlank()) {
+					if (transcript.length() > 0) {
+						transcript.append('\n');
+					}
+					transcript.append(text.trim());
+				}
+			}
 		}
-		return firstPart.get("text").getAsString();
+		return transcript.toString();
+	}
+
+	private static String summarizeGeminiErrorBody(String body) {
+		if (body == null || body.isBlank()) {
+			return "Empty response body";
+		}
+		try {
+			JsonObject json = GSON.fromJson(body, JsonObject.class);
+			if (json != null && json.has("error") && json.get("error").isJsonObject()) {
+				JsonObject error = json.getAsJsonObject("error");
+				String message = error.has("message") ? error.get("message").getAsString() : body;
+				String status = error.has("status") ? error.get("status").getAsString() : "";
+				if (!status.isBlank() && !message.contains(status)) {
+					return status + ": " + message;
+				}
+				return message;
+			}
+		} catch (Exception ignored) {
+		}
+		String flattened = body.replace('\n', ' ').replace('\r', ' ').trim();
+		return flattened.length() > 240 ? flattened.substring(0, 240) + "..." : flattened;
 	}
 
 	private static String sanitizeTranscript(String transcript) {

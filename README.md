@@ -8,7 +8,7 @@
 [![Minecraft 1.21.1](https://img.shields.io/badge/Minecraft-1.21.1-blue?style=for-the-badge&logo=minecraft)](https://www.minecraft.net/)
 [![Fabric](https://img.shields.io/badge/Fabric-Loader-9c8a7b?style=for-the-badge&logo=fabric)](https://fabricmc.net/)
 [![Gemini 3.1 Pro Preview](https://img.shields.io/badge/Power-Gemini_3.1_Pro_Preview-orange?style=for-the-badge&logo=google-gemini)](https://deepmind.google/technologies/gemini/)
-[![Official Release](https://img.shields.io/badge/Release-v1.3.0_MCP_Bridge_Update-purple?style=for-the-badge)](https://github.com/aaronaalmendarez/gemini-minecraft/releases/tag/v1.3.0)
+[![Official Release](https://img.shields.io/badge/Release-v1.3.1_Voice_Fix_Update-purple?style=for-the-badge)](https://github.com/aaronaalmendarez/gemini-minecraft/releases/tag/v1.3.1)
 [![MIT License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 [**Quick Start**](#-getting-started) • [**Features**](#-pillars-of-intelligence) • [**Roadmap**](#-roadmap) • [**Commands**](#-command-terminal) • [**Technical Specs**](#-the-nerd-stack)
@@ -17,7 +17,7 @@
 
 ### *“The first AI that doesn't just talk to you—it lives in your world.”*
 
-### *Now featuring a structured voxel architect, copy-paste MCP setup, live screenshot tools, build previews, delayed command batches, and self-repairing execution.*
+### *Now featuring a fixed push-to-talk voice path, a structured voxel architect, copy-paste MCP setup, live screenshot tools, build previews, delayed command batches, and self-repairing execution.*
 
 ![Demo](readme_resources/demo.gif)
 
@@ -25,7 +25,7 @@
 
 ## ⚡ Quick Try
 
-1.  **Download** the latest release: [**v1.3.0 JARs**](https://github.com/aaronaalmendarez/gemini-minecraft/releases/tag/v1.3.0)
+1.  **Download** the latest release: [**v1.3.1 JARs**](https://github.com/aaronaalmendarez/gemini-minecraft/releases/tag/v1.3.1)
 2.  Drop the `.jar` into your **`mods`** folder.
 3.  Launch with **Fabric 1.21.1**.
 4.  **Experience the Power**:
@@ -290,8 +290,8 @@ That is it. No manual token pasting is required.
 
 #### Release Assets
 
-The `v1.3.0` release ships:
-- `gemini-ai-companion-1.3.0.jar` for the Fabric mod
+The `v1.3.1` release ships:
+- `gemini-ai-companion-1.3.1.jar` for the Fabric mod
 - `gemini-minecraft-mcp-sidecar.jar` for the standalone Java MCP sidecar
 
 The recommended client path is still the generated Node sidecar config, because it includes the richest MCP guidance and best host compatibility.
