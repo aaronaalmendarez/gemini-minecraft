@@ -393,10 +393,18 @@ The build-plan tool accepts either:
 - or a wrapper object with top-level `build_plan`
 
 Important top-level planning fields:
-- `coordMode`: `player` or `absolute`
-- `origin`: in `player` mode this is a relative shift from the player; in `absolute` mode it is an explicit world origin
+- `label` or `summary`: human-readable build name
+- `version`: set `2` for the richer semantic build-plan contract
+- `coordMode`: `player`, `absolute`, or `anchor`
+- `origin`: in `absolute` mode this is an explicit world origin
 - `offset`: optional extra relative shift after the base origin
+- `anchor`: anchor reference such as `last_build:door` when `coordMode=anchor`
 - `autoFix`: allows safe grounding fixes like small auto-lowers and limited support repair
+- `snapToGround`: opt-in grounding adjustment
+- `flattenTerrain`: opt-in terrain flattening across the footprint
+- `clearVegetation`: opt-in replaceable-plant clearing in the footprint
+- `options.rotation`: `0`, `90`, `180`, `270`, `cw`, or `ccw`
+- `anchors`: named relative anchor points remembered after successful builds
 
 Minimal example:
 
@@ -417,6 +425,18 @@ Supported aliases are intentionally flexible:
 - block id: `block`, `material`, or `id`
 - properties: `properties` or `state`
 - geometry: `from/to`, `start/end`, `start + size`, `location + size`, `location + dimensions`
+- vanilla-style block-state strings also work, for example `minecraft:oak_stairs[facing=east,half=top]`
+
+Semantic step types in `steps[]` now include:
+- `cuboid`
+- `hollow_cuboid`
+- `columns`
+- `blocks`
+- `windows`
+- `roof`
+- `fill`
+- `repeat`
+- `scatter`
 
 #### Planner Semantics Agents Should Follow
 
@@ -425,13 +445,17 @@ Agents should not treat the build planner as a black box. The most important rul
 - `minecraft_buildsite` returns terrain deltas relative to the player’s current block Y, not absolute world Y.
 - If `maxDy` is negative, the surrounding surface is below the player. A build with floor `y=0` will float unless the plan is lowered or the player moves.
 - `coordMode=absolute` is the right choice when the structure needs to stay locked to a specific world location instead of wherever the player happens to be standing.
-- If `coordMode=absolute` is used without `origin`, the planner falls back to the player’s block position and reports that fallback in `repairs`.
+- `coordMode=anchor` lets one build attach to anchors created by an earlier successful build, for example `last_build:door`.
+- If `coordMode=absolute` is used without `origin`, the planner now rejects the plan instead of silently falling back.
 - `clearPercent` is headroom above sampled surface columns, not proof that the terrain is flat.
 - The planner clamps relative X/Z into `[-32, 32]` and relative Y into `[-24, 24]`. If a plan is too large or too far away, the result includes repairs saying it was clamped into the safe build window.
-- `steps` should be used for phased builds like foundation -> shell -> roof -> details.
+- `steps` should be used for phased builds like foundation -> shell -> roof -> details, and step order is preserved unless `options.phaseReorder=true`.
 - `clear` volumes remove space before building and use the same bounds formats as cuboids, but without a block id.
+- `clear` can also use the v2 object form with `enabled`, `dx`, `dy`, `dz`, `offset`, and `replaceWith`.
 - `rotate` accepts `0`, `90`, `180`, `270`, `cw`, and `ccw`, and the result reports the final normalized value in `appliedRotation`.
 - `phaseCount` reports how many direct-operation phases were compiled from `clear`, `cuboids`, `blocks`, and `steps`.
+- `hollow_cuboid` should be preferred over solid-fill-then-air hacks for rooms and wall shells.
+- `roof` lets the planner generate common roof forms directly instead of forcing the agent to hand-author every shrinking rectangle.
 - The planner now returns structured `issues` identifying floating cuboids or block targets, their `gapBelow`, and a `suggestedY` to ground them correctly.
 - The planner only adds support pillars for real unsupported columns and caps auto-support at 24 columns.
 - If more than 80% of the lowest build columns are already within 2 blocks of solid ground and `autoFix=true`, the planner can auto-lower the whole build instead of spamming pillars.

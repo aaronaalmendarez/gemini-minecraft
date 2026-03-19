@@ -2651,10 +2651,37 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		if (message == null) {
 			return false;
 		}
-		if (message.buildPlan() != null) {
+		if (isMeaningfulBuildPlan(message.buildPlan())) {
 			return true;
 		}
 		return !filterExecutableCommands(message.commands, player).isEmpty();
+	}
+
+	private static boolean isMeaningfulBuildPlan(VoxelBuildPlanner.BuildPlan buildPlan) {
+		if (buildPlan == null) {
+			return false;
+		}
+		if ((buildPlan.clearVolumes() != null && !buildPlan.clearVolumes().isEmpty())
+			|| (buildPlan.cuboids() != null && !buildPlan.cuboids().isEmpty())
+			|| (buildPlan.blocks() != null && !buildPlan.blocks().isEmpty())) {
+			return true;
+		}
+		if (buildPlan.steps() != null) {
+			for (VoxelBuildPlanner.BuildStep step : buildPlan.steps()) {
+				if (step != null && isMeaningfulBuildPlan(step.plan())) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private static boolean isRequestStillActive(ServerPlayerEntity player, RequestState expectedState) {
+		if (player == null) {
+			return false;
+		}
+		RequestState live = REQUEST_STATES.get(player.getUuid());
+		return expectedState != null && live == expectedState && !expectedState.cancelled.get();
 	}
 
 	private static String buildPreviewRetryContext(VoxelBuildPlanner.CompiledBuild compiledBuild, List<String> previewCommands, String prefix) {
@@ -2717,14 +2744,21 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		ModeMessage current = initial;
 		int steps = 0;
 		int retryLimit = getRetryLimit(player);
+		RequestState requestState = player == null ? null : REQUEST_STATES.get(player.getUuid());
 		for (int attempt = 1; attempt <= retryLimit; attempt++) {
+			if (!isRequestStillActive(player, requestState)) {
+				return new ModeMessage("ASK", "", List.of(), false, List.of(), List.of());
+			}
 			setRetryStats(player, attempt - 1);
 			List<String> executableCommands = new ArrayList<>();
 			VoxelBuildPlanner.CompiledBuild compiledBuild = null;
 			PreparedCommands prepared = null;
-			if (current.buildPlan() != null) {
+			if (isMeaningfulBuildPlan(current.buildPlan())) {
 				compiledBuild = VoxelBuildPlanner.compile(player, current.buildPlan());
 				if (!compiledBuild.valid()) {
+					if (!isRequestStillActive(player, requestState)) {
+						return new ModeMessage("ASK", "", List.of(), false, List.of(), List.of());
+					}
 					if (attempt == retryLimit) {
 						LOGGER.info("AI build retry exhausted for player {}. Errors: {}", player.getName().getString(), compiledBuild.error());
 						return new ModeMessage("COMMAND", "AI could not produce a valid structured build after several tries.", List.of(), false, List.of(), List.of());
@@ -2753,6 +2787,9 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			prepared = prepareCommandsForExecution(player, executableCommands);
 			CommandResult validation = validateCommands(player, prepared.executeCommands);
 			if (!validation.success) {
+				if (!isRequestStillActive(player, requestState)) {
+					return new ModeMessage("ASK", "", List.of(), false, List.of(), List.of());
+				}
 				if (attempt == retryLimit) {
 					LOGGER.info("AI retry exhausted for player {}. Validation errors: {}", player.getName().getString(), validation.errorSummary);
 					return new ModeMessage("COMMAND", "AI could not produce valid commands after several tries.", List.of(), false, List.of(), List.of());
@@ -2769,6 +2806,9 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 				}
 				continue;
 			}
+			if (!isRequestStillActive(player, requestState)) {
+				return new ModeMessage("ASK", "", List.of(), false, List.of(), List.of());
+			}
 
 			CommandResult result = executeCommands(player, prepared.executeCommands);
 			if (player != null) {
@@ -2779,6 +2819,9 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			if (result.success) {
 				if (!prepared.undoCommands.isEmpty() || !prepared.undoSnapshots.isEmpty()) {
 					LAST_UNDO_BATCHES.put(player.getUuid(), new UndoBatch(prepared.undoCommands, prepared.undoSnapshots));
+				}
+				if (compiledBuild != null && current.buildPlan() != null) {
+					VoxelBuildPlanner.rememberAnchors(compiledBuild, current.buildPlan());
 				}
 				steps++;
 				if (shouldContinueAfterOutput(prepared.executeCommands, result.outputs) && steps < MAX_COMMAND_STEPS) {
@@ -4197,6 +4240,18 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			CommandResult execution = executeCommands(player, prepared.executeCommands);
 			if (execution.success) {
 				LAST_UNDO_BATCHES.put(player.getUuid(), new UndoBatch(prepared.undoCommands, prepared.undoSnapshots));
+				VoxelBuildPlanner.rememberAnchors(new VoxelBuildPlanner.CompiledBuild(
+					true,
+					cached.executeCommands(),
+					cached.summary(),
+					cached.repairs(),
+					"",
+					cached.appliedRotation(),
+					cached.phaseCount(),
+					cached.resolvedOrigin(),
+					cached.issues(),
+					cached.autoFixAvailable()
+				), cached.plan());
 			}
 			return new McpActionResult(
 				execution.success,
@@ -4235,6 +4290,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		CommandResult execution = executeCommands(player, prepared.executeCommands);
 		if (execution.success) {
 			LAST_UNDO_BATCHES.put(player.getUuid(), new UndoBatch(prepared.undoCommands, prepared.undoSnapshots));
+			VoxelBuildPlanner.rememberAnchors(compiled, plan);
 		}
 		return new McpActionResult(
 			execution.success,
@@ -4284,6 +4340,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			planId,
 			player.getUuid(),
 			System.currentTimeMillis(),
+			plan,
 			prepared.executeCommands,
 			compiled.summary(),
 			compiled.appliedRotation(),
@@ -5145,24 +5202,34 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		schema.addProperty("additionalProperties", true);
 
 		JsonObject properties = new JsonObject();
+		properties.add("label", primitiveSchema("string"));
+		properties.add("version", primitiveSchema("integer"));
 		properties.add("summary", primitiveSchema("string"));
 		properties.add("description", primitiveSchema("string"));
 		properties.add("anchor", primitiveSchema("string"));
-		properties.add("coordMode", enumSchema("string", "player", "absolute"));
+		properties.add("anchors", buildStringToPointMapJsonSchema());
+		properties.add("coordMode", enumSchema("string", "player", "absolute", "anchor"));
 		properties.add("origin", buildPointJsonSchema());
 		properties.add("offset", buildPointJsonSchema());
 		properties.add("autoFix", primitiveSchema("boolean"));
+		properties.add("snapToGround", primitiveSchema("boolean"));
+		properties.add("flattenTerrain", primitiveSchema("boolean"));
+		properties.add("clearVegetation", primitiveSchema("boolean"));
 		properties.add("rotate", buildRotateJsonSchema());
 		properties.add("rotation", buildRotateJsonSchema());
+		properties.add("options", buildPlanOptionsJsonSchema());
 		properties.add("palette", buildPaletteJsonSchema());
-		properties.add("clear", arraySchema(buildVolumeJsonSchema()));
+		JsonArray clearAnyOf = new JsonArray();
+		clearAnyOf.add(arraySchema(buildVolumeJsonSchema()));
+		clearAnyOf.add(buildVolumeJsonSchema());
+		properties.add("clear", anyOfSchema(clearAnyOf));
 		properties.add("cuboids", arraySchema(buildCuboidJsonSchema()));
 		properties.add("blocks", arraySchema(buildBlockPlacementJsonSchema()));
 		if (includeSteps) {
 			properties.add("steps", arraySchema(buildBuildStepJsonSchema()));
 		}
 		schema.add("properties", properties);
-		addPropertyOrdering(schema, "summary", "description", "anchor", "coordMode", "origin", "offset", "autoFix", "rotate", "rotation", "palette", "clear", "cuboids", "blocks", "steps");
+		addPropertyOrdering(schema, "label", "version", "summary", "description", "anchor", "anchors", "coordMode", "origin", "offset", "autoFix", "snapToGround", "flattenTerrain", "clearVegetation", "rotate", "rotation", "options", "palette", "clear", "cuboids", "blocks", "steps");
 		return schema;
 	}
 
@@ -5171,13 +5238,36 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		schema.addProperty("type", "object");
 		schema.addProperty("additionalProperties", true);
 		JsonObject properties = new JsonObject();
+		properties.add("type", primitiveSchema("string"));
 		properties.add("phase", primitiveSchema("string"));
 		properties.add("name", primitiveSchema("string"));
 		properties.add("label", primitiveSchema("string"));
 		properties.add("step", primitiveSchema("string"));
 		properties.add("plan", buildPlanJsonSchema(false));
 		schema.add("properties", properties);
-		addPropertyOrdering(schema, "phase", "plan", "name", "label", "step");
+		addPropertyOrdering(schema, "type", "phase", "plan", "name", "label", "step");
+		return schema;
+	}
+
+	private static JsonObject buildStringToPointMapJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.add("additionalProperties", buildPointJsonSchema());
+		return schema;
+	}
+
+	private static JsonObject buildPlanOptionsJsonSchema() {
+		JsonObject schema = new JsonObject();
+		schema.addProperty("type", "object");
+		schema.addProperty("additionalProperties", true);
+		JsonObject properties = new JsonObject();
+		properties.add("phaseReorder", primitiveSchema("boolean"));
+		properties.add("dryRun", primitiveSchema("boolean"));
+		properties.add("batchUndo", primitiveSchema("boolean"));
+		properties.add("rotateBlockStates", primitiveSchema("boolean"));
+		properties.add("rotation", buildRotateJsonSchema());
+		schema.add("properties", properties);
+		addPropertyOrdering(schema, "phaseReorder", "dryRun", "batchUndo", "rotateBlockStates", "rotation");
 		return schema;
 	}
 
@@ -5217,8 +5307,14 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		properties.add("width", primitiveSchema("integer"));
 		properties.add("height", primitiveSchema("integer"));
 		properties.add("depth", primitiveSchema("integer"));
-			properties.add("length", primitiveSchema("integer"));
-			schema.add("properties", properties);
+		properties.add("length", primitiveSchema("integer"));
+		properties.add("enabled", primitiveSchema("boolean"));
+		properties.add("dx", primitiveSchema("integer"));
+		properties.add("dy", primitiveSchema("integer"));
+		properties.add("dz", primitiveSchema("integer"));
+		properties.add("offset", buildPointJsonSchema());
+		properties.add("replaceWith", primitiveSchema("string"));
+		schema.add("properties", properties);
 		addPropertyOrdering(schema, "name", "label", "from", "to", "start", "end", "location", "size", "dimensions", "width", "height", "depth", "length");
 		return schema;
 	}
@@ -5807,6 +5903,9 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 				}
 			}
 			VoxelBuildPlanner.BuildPlan buildPlan = VoxelBuildPlanner.parseBuildPlan(obj);
+			if (!isMeaningfulBuildPlan(buildPlan)) {
+				buildPlan = null;
+			}
 			List<Highlight> highlights = parseHighlights(obj);
 			return new ModeMessage(normalizeMode(mode), message, commands, searchUsed, sources, highlights, buildPlan);
 		} catch (Exception e) {
@@ -7078,6 +7177,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		String planId,
 		UUID playerId,
 		long createdMs,
+		VoxelBuildPlanner.BuildPlan plan,
 		List<String> executeCommands,
 		String summary,
 		int appliedRotation,
