@@ -189,6 +189,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 	private static final Map<UUID, VisionRequest> PENDING_VISION = new ConcurrentHashMap<>();
 	private static final Map<Long, PendingMcpCapture> PENDING_MCP_CAPTURES = new ConcurrentHashMap<>();
 	private static final Map<String, PendingMcpCommandBatch> PENDING_MCP_COMMAND_BATCHES = new ConcurrentHashMap<>();
+	private static final Map<String, CachedMcpBuildPlan> PENDING_MCP_BUILD_PREVIEWS = new ConcurrentHashMap<>();
 	private static final Map<UUID, String> LAST_MCP_COMMAND_BATCH_BY_PLAYER = new ConcurrentHashMap<>();
 	private static final Map<UUID, SettingsSnapshot> SETTINGS_SNAPSHOTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, PendingSettingChange> PENDING_SETTING_CHANGES = new ConcurrentHashMap<>();
@@ -222,6 +223,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 	private static final long VISION_TIMEOUT_MS = 15_000L;
 	private static final AtomicLong MCP_CAPTURE_REQUEST_IDS = new AtomicLong(1L);
 	private static final AtomicLong MCP_COMMAND_BATCH_IDS = new AtomicLong(1L);
+	private static final AtomicLong MCP_BUILD_PLAN_IDS = new AtomicLong(1L);
 	private static final Set<UUID> COMMAND_DEBUG_ENABLED = ConcurrentHashMap.newKeySet();
 	private static final Map<UUID, Integer> COMMAND_RETRY_LIMITS = new ConcurrentHashMap<>();
 	private static final int MAX_CONTEXT_TOKENS = 16000;
@@ -236,6 +238,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 	private static final int MAX_MCP_DELAYED_COMMANDS = 128;
 	private static final int MAX_MCP_DELAY_TICKS = 20 * 60;
 	private static final long MCP_COMMAND_BATCH_RETENTION_MS = 5L * 60L * 1000L;
+	private static final long MCP_BUILD_PLAN_RETENTION_MS = 10L * 60L * 1000L;
 	private static final int HISTORY_EXCHANGES_PER_PAGE = 3;
 	private static final boolean SIDEBAR_DEFAULT_ENABLED = true;
 	private static boolean SIDEBAR_ENABLED = SIDEBAR_DEFAULT_ENABLED;
@@ -549,6 +552,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 				ACTIVE_SERVER = null;
 			}
 			PENDING_MCP_COMMAND_BATCHES.clear();
+			PENDING_MCP_BUILD_PREVIEWS.clear();
 			LAST_MCP_COMMAND_BATCH_BY_PLAYER.clear();
 		});
 
@@ -556,6 +560,7 @@ public static final String MOD_ID = "gemini-ai-companion";
 			LAST_SERVER_TICK_MS = System.currentTimeMillis();
 			cleanupPendingMcpCaptures(LAST_SERVER_TICK_MS);
 			processPendingMcpCommandBatches(server, LAST_SERVER_TICK_MS);
+			cleanupPendingMcpBuildPreviews(LAST_SERVER_TICK_MS);
 			if (THINKING_TICKS.isEmpty()) {
 				// Still allow mode indicators to render.
 			}
@@ -1555,6 +1560,18 @@ public static final String MOD_ID = "gemini-ai-companion";
 				continue;
 			}
 			batch.process(server, nowMs);
+		}
+	}
+
+	private static void cleanupPendingMcpBuildPreviews(long nowMs) {
+		if (PENDING_MCP_BUILD_PREVIEWS.isEmpty()) {
+			return;
+		}
+		for (var entry : PENDING_MCP_BUILD_PREVIEWS.entrySet()) {
+			CachedMcpBuildPlan preview = entry.getValue();
+			if (preview != null && preview.isExpired(nowMs)) {
+				PENDING_MCP_BUILD_PREVIEWS.remove(entry.getKey(), preview);
+			}
 		}
 	}
 
@@ -4038,7 +4055,11 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			0,
 			List.of(),
 			false,
-			""
+			"",
+			"",
+			new VoxelBuildPlanner.GridPoint(0, 0, 0),
+			List.of(),
+			false
 		);
 	}
 
@@ -4094,7 +4115,11 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			0,
 			prepared.executeCommands,
 			true,
-			batchId
+			batchId,
+			"",
+			new VoxelBuildPlanner.GridPoint(0, 0, 0),
+			List.of(),
+			false
 		);
 	}
 
@@ -4106,6 +4131,43 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		if (root == null) {
 			root = new JsonObject();
 		}
+		String executePlanId = root.has("executePlanId") && root.get("executePlanId").isJsonPrimitive() ? root.get("executePlanId").getAsString() : null;
+		if (executePlanId == null || executePlanId.isBlank()) {
+			executePlanId = root.has("planId") && root.get("planId").isJsonPrimitive() ? root.get("planId").getAsString() : null;
+		}
+		if (executePlanId != null && !executePlanId.isBlank()) {
+			CachedMcpBuildPlan cached = PENDING_MCP_BUILD_PREVIEWS.get(executePlanId.trim());
+			if (cached == null || !cached.playerId().equals(player.getUuid()) || cached.isExpired(System.currentTimeMillis())) {
+				return new McpActionResult(false, 0, List.of(), List.of(), "Unknown or expired planId.", false, "No build executed.", 0, 0);
+			}
+			PreparedCommands prepared = prepareCommandsForExecution(player, cached.executeCommands());
+			CommandResult validation = validateCommands(player, prepared.executeCommands);
+			if (!validation.success) {
+				return new McpActionResult(false, 0, cached.repairs(), List.of(), validation.errorSummary, false, cached.summary(), cached.appliedRotation(), cached.phaseCount(), List.of(), false, "", cached.planId(), cached.resolvedOrigin(), cached.issues(), cached.autoFixAvailable());
+			}
+			CommandResult execution = executeCommands(player, prepared.executeCommands);
+			if (execution.success) {
+				LAST_UNDO_BATCHES.put(player.getUuid(), new UndoBatch(prepared.undoCommands, prepared.undoSnapshots));
+			}
+			return new McpActionResult(
+				execution.success,
+				execution.success ? prepared.executeCommands.size() : 0,
+				cached.repairs(),
+				filterUserOutputs(execution.outputs),
+				execution.success ? "" : execution.errorSummary,
+				execution.success && (!prepared.undoCommands.isEmpty() || !prepared.undoSnapshots.isEmpty()),
+				cached.summary(),
+				cached.appliedRotation(),
+				cached.phaseCount(),
+				List.of(),
+				false,
+				"",
+				cached.planId(),
+				cached.resolvedOrigin(),
+				cached.issues(),
+				cached.autoFixAvailable()
+			);
+		}
 		if (!root.has("build_plan")) {
 			JsonObject wrapped = new JsonObject();
 			wrapped.add("build_plan", root.deepCopy());
@@ -4114,12 +4176,12 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		VoxelBuildPlanner.BuildPlan plan = VoxelBuildPlanner.parseBuildPlan(root);
 		VoxelBuildPlanner.CompiledBuild compiled = VoxelBuildPlanner.compile(player, plan);
 		if (!compiled.valid()) {
-			return new McpActionResult(false, 0, compiled.repairs(), List.of(), compiled.error(), false, compiled.summary(), compiled.appliedRotation(), compiled.phases());
+			return new McpActionResult(false, 0, compiled.repairs(), List.of(), compiled.error(), false, compiled.summary(), compiled.appliedRotation(), compiled.phases(), List.of(), false, "", "", compiled.resolvedOrigin(), compiled.issues(), compiled.autoFixAvailable());
 		}
 		PreparedCommands prepared = prepareCommandsForExecution(player, compiled.commands());
 		CommandResult validation = validateCommands(player, prepared.executeCommands);
 		if (!validation.success) {
-			return new McpActionResult(false, 0, compiled.repairs(), List.of(), validation.errorSummary, false, compiled.summary(), compiled.appliedRotation(), compiled.phases());
+			return new McpActionResult(false, 0, compiled.repairs(), List.of(), validation.errorSummary, false, compiled.summary(), compiled.appliedRotation(), compiled.phases(), List.of(), false, "", "", compiled.resolvedOrigin(), compiled.issues(), compiled.autoFixAvailable());
 		}
 		CommandResult execution = executeCommands(player, prepared.executeCommands);
 		if (execution.success) {
@@ -4134,7 +4196,14 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			execution.success && (!prepared.undoCommands.isEmpty() || !prepared.undoSnapshots.isEmpty()),
 			compiled.summary(),
 			compiled.appliedRotation(),
-			compiled.phases()
+			compiled.phases(),
+			List.of(),
+			false,
+			"",
+			"",
+			compiled.resolvedOrigin(),
+			compiled.issues(),
+			compiled.autoFixAvailable()
 		);
 	}
 
@@ -4154,13 +4223,27 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		VoxelBuildPlanner.BuildPlan plan = VoxelBuildPlanner.parseBuildPlan(root);
 		VoxelBuildPlanner.CompiledBuild compiled = VoxelBuildPlanner.compile(player, plan);
 		if (!compiled.valid()) {
-			return new McpActionResult(false, 0, compiled.repairs(), List.of(), compiled.error(), false, compiled.summary(), compiled.appliedRotation(), compiled.phases(), List.of());
+			return new McpActionResult(false, 0, compiled.repairs(), List.of(), compiled.error(), false, compiled.summary(), compiled.appliedRotation(), compiled.phases(), List.of(), false, "", "", compiled.resolvedOrigin(), compiled.issues(), compiled.autoFixAvailable());
 		}
 		PreparedCommands prepared = prepareCommandsForExecution(player, compiled.commands());
 		CommandResult validation = validateCommands(player, prepared.executeCommands);
 		if (!validation.success) {
-			return new McpActionResult(false, 0, compiled.repairs(), List.of(), validation.errorSummary, false, compiled.summary(), compiled.appliedRotation(), compiled.phases(), prepared.executeCommands);
+			return new McpActionResult(false, 0, compiled.repairs(), List.of(), validation.errorSummary, false, compiled.summary(), compiled.appliedRotation(), compiled.phases(), prepared.executeCommands, false, "", "", compiled.resolvedOrigin(), compiled.issues(), compiled.autoFixAvailable());
 		}
+		String planId = "plan-" + Long.toUnsignedString(MCP_BUILD_PLAN_IDS.getAndIncrement(), 36);
+		PENDING_MCP_BUILD_PREVIEWS.put(planId, new CachedMcpBuildPlan(
+			planId,
+			player.getUuid(),
+			System.currentTimeMillis(),
+			prepared.executeCommands,
+			compiled.summary(),
+			compiled.appliedRotation(),
+			compiled.phases(),
+			compiled.repairs(),
+			compiled.resolvedOrigin(),
+			compiled.issues(),
+			compiled.autoFixAvailable()
+		));
 		return new McpActionResult(
 			true,
 			prepared.executeCommands.size(),
@@ -4171,7 +4254,13 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			"Preview ready. " + prepared.executeCommands.size() + " command(s) would execute.",
 			compiled.appliedRotation(),
 			compiled.phases(),
-			prepared.executeCommands
+			prepared.executeCommands,
+			false,
+			"",
+			planId,
+			compiled.resolvedOrigin(),
+			compiled.issues(),
+			compiled.autoFixAvailable()
 		);
 	}
 
@@ -5010,10 +5099,12 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		properties.add("summary", primitiveSchema("string"));
 		properties.add("description", primitiveSchema("string"));
 		properties.add("anchor", primitiveSchema("string"));
+		properties.add("coordMode", enumSchema("string", "player", "absolute"));
 		properties.add("origin", buildPointJsonSchema());
 		properties.add("offset", buildPointJsonSchema());
+		properties.add("autoFix", primitiveSchema("boolean"));
 		properties.add("rotate", buildRotateJsonSchema());
-			properties.add("rotation", buildRotateJsonSchema());
+		properties.add("rotation", buildRotateJsonSchema());
 		properties.add("palette", buildPaletteJsonSchema());
 		properties.add("clear", arraySchema(buildVolumeJsonSchema()));
 		properties.add("cuboids", arraySchema(buildCuboidJsonSchema()));
@@ -5022,7 +5113,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			properties.add("steps", arraySchema(buildBuildStepJsonSchema()));
 		}
 		schema.add("properties", properties);
-		addPropertyOrdering(schema, "summary", "description", "anchor", "origin", "offset", "rotate", "rotation", "palette", "clear", "cuboids", "blocks", "steps");
+		addPropertyOrdering(schema, "summary", "description", "anchor", "coordMode", "origin", "offset", "autoFix", "rotate", "rotation", "palette", "clear", "cuboids", "blocks", "steps");
 		return schema;
 	}
 
@@ -6852,7 +6943,11 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 		int phaseCount,
 		List<String> previewCommands,
 		boolean pending,
-		String batchId
+		String batchId,
+		String planId,
+		VoxelBuildPlanner.GridPoint resolvedOrigin,
+		List<VoxelBuildPlanner.SupportIssue> issues,
+		boolean autoFixAvailable
 	) {
 		McpActionResult(
 			boolean success,
@@ -6865,7 +6960,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			int appliedRotation,
 			int phaseCount
 		) {
-			this(success, applied, repairs, outputs, error, undoAvailable, summary, appliedRotation, phaseCount, List.of(), false, "");
+			this(success, applied, repairs, outputs, error, undoAvailable, summary, appliedRotation, phaseCount, List.of(), false, "", "", new VoxelBuildPlanner.GridPoint(0, 0, 0), List.of(), false);
 		}
 
 		McpActionResult(
@@ -6880,7 +6975,7 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 			int phaseCount,
 			List<String> previewCommands
 		) {
-			this(success, applied, repairs, outputs, error, undoAvailable, summary, appliedRotation, phaseCount, previewCommands, false, "");
+			this(success, applied, repairs, outputs, error, undoAvailable, summary, appliedRotation, phaseCount, previewCommands, false, "", "", new VoxelBuildPlanner.GridPoint(0, 0, 0), List.of(), false);
 		}
 	}
 
@@ -6910,6 +7005,24 @@ public record Highlight(double x, double y, double z, String label, int colorHex
 	) {}
 
 	private record PendingMcpCapture(UUID playerId, long requestId, long createdMs, CompletableFuture<McpVisionCaptureResult> future) {}
+
+	private record CachedMcpBuildPlan(
+		String planId,
+		UUID playerId,
+		long createdMs,
+		List<String> executeCommands,
+		String summary,
+		int appliedRotation,
+		int phaseCount,
+		List<String> repairs,
+		VoxelBuildPlanner.GridPoint resolvedOrigin,
+		List<VoxelBuildPlanner.SupportIssue> issues,
+		boolean autoFixAvailable
+	) {
+		boolean isExpired(long nowMs) {
+			return nowMs - createdMs > MCP_BUILD_PLAN_RETENTION_MS;
+		}
+	}
 
 	private static final class PendingMcpCommandBatch {
 		private final String batchId;

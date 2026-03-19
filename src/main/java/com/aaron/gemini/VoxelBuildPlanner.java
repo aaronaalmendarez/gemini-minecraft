@@ -38,10 +38,13 @@ final class VoxelBuildPlanner {
 	}
 
 	static BuildPlan parseBuildPlan(JsonObject obj) {
-		if (obj == null || !obj.has("build_plan") || !obj.get("build_plan").isJsonObject()) {
+		if (obj == null) {
 			return null;
 		}
-		return parsePlanObject(obj.getAsJsonObject("build_plan"), null);
+		if (obj.has("build_plan") && obj.get("build_plan").isJsonObject()) {
+			return parsePlanObject(obj.getAsJsonObject("build_plan"), null);
+		}
+		return parsePlanObject(obj, null);
 	}
 
 	private static BuildPlan parsePlanObject(JsonObject planObj, BuildPlan defaults) {
@@ -56,16 +59,19 @@ final class VoxelBuildPlanner {
 		if ((anchor == null || anchor.isBlank()) && defaults != null) {
 			anchor = defaults.anchor();
 		}
+		String coordMode = normalizeCoordMode(firstString(planObj, "coordMode", "coordinateMode"), defaults == null ? "player" : defaults.coordMode());
 		int rotation = parseRotation(planObj, defaults == null ? 0 : defaults.rotationDegrees());
-		GridPoint offset = parsePoint(planObj, "origin");
-		if (offset == null) {
-			offset = parsePoint(planObj, "offset");
+		GridPoint origin = parsePoint(planObj, "origin");
+		if (origin == null && defaults != null) {
+			origin = defaults.origin();
 		}
+		GridPoint offset = parsePoint(planObj, "offset");
 		if (offset == null && defaults != null) {
 			offset = defaults.offset();
 		}
-		if (offset == null) {
-			offset = new GridPoint(0, 0, 0);
+		boolean autoFix = defaults == null || defaults.autoFix();
+		if (planObj.has("autoFix") && planObj.get("autoFix").isJsonPrimitive()) {
+			autoFix = planObj.get("autoFix").getAsBoolean();
 		}
 
 		Map<String, String> palette = new LinkedHashMap<>();
@@ -129,34 +135,55 @@ final class VoxelBuildPlanner {
 			}
 		}
 
-		List<BuildStep> steps = parseStepArray(planObj, new BuildPlan(summary, anchor, offset, rotation, palette, List.of(), List.of(), List.of(), List.of()));
-		return new BuildPlan(summary, anchor, offset, rotation, palette, clearVolumes, cuboids, blocks, steps);
+		List<BuildStep> steps = parseStepArray(planObj, new BuildPlan(summary, anchor, coordMode, origin, offset, rotation, autoFix, palette, List.of(), List.of(), List.of(), List.of()));
+		return new BuildPlan(summary, anchor, coordMode, origin, offset, rotation, autoFix, palette, clearVolumes, cuboids, blocks, steps);
 	}
 
 	static CompiledBuild compile(ServerPlayerEntity player, BuildPlan plan) {
+		return compile(player, plan, 0);
+	}
+
+	private static CompiledBuild compile(ServerPlayerEntity player, BuildPlan plan, int autoFixPass) {
 		if (player == null) {
-			return new CompiledBuild(false, List.of(), "No build executed.", List.of(), "Build plans require a player context.", 0, 0);
+			return new CompiledBuild(false, List.of(), "No build executed.", List.of(), "Build plans require a player context.", 0, 0, new GridPoint(0, 0, 0), List.of(), false);
 		}
 		if (plan == null) {
-			return new CompiledBuild(false, List.of(), "No build executed.", List.of(), "Missing build_plan.", 0, 0);
+			return new CompiledBuild(false, List.of(), "No build executed.", List.of(), "Missing build_plan.", 0, 0, toGridPoint(player.getBlockPos()), List.of(), false);
 		}
 
 		List<String> repairs = new ArrayList<>();
-		CompileAccumulator accumulator = new CompileAccumulator();
-		CompiledBuild failure = compilePlanInto(player, plan, repairs, accumulator);
+		BlockPos resolvedOrigin = resolveOrigin(player, plan, repairs);
+		CompileAccumulator accumulator = new CompileAccumulator(resolvedOrigin);
+		CompiledBuild failure = compilePlanInto(player, plan, resolvedOrigin, repairs, accumulator);
 		if (failure != null) {
 			return failure;
 		}
-		SupportRepair supportRepair = repairSupportColumns(player.getServerWorld(), accumulator);
+		SupportRepair supportRepair = repairSupportColumns(player.getServerWorld(), accumulator, plan.autoFix());
+		if (supportRepair.autoShiftDown() > 0) {
+			BuildPlan shiftedPlan = shiftWholePlan(plan, -supportRepair.autoShiftDown());
+			List<String> prefixRepairs = List.of("Auto-lowered the build by " + supportRepair.autoShiftDown() + " block(s) to rest on nearby terrain.");
+			return prependRepairs(compile(player, shiftedPlan, autoFixPass + 1), prefixRepairs);
+		}
+		if (!supportRepair.valid()
+				&& plan.autoFix()
+				&& autoFixPass < 2
+				&& !supportRepair.issues().isEmpty()
+				&& supportRepair.issues().stream().allMatch(issue -> "floating".equalsIgnoreCase(issue.issue()))) {
+			List<String> autoFixRepairs = new ArrayList<>();
+			BuildPlan shiftedPlan = shiftPlanForIssues(plan, supportRepair.issues(), autoFixRepairs);
+			if (shiftedPlan != null) {
+				return prependRepairs(compile(player, shiftedPlan, autoFixPass + 1), autoFixRepairs);
+			}
+		}
 		if (!supportRepair.valid()) {
-			return new CompiledBuild(false, List.of(), "No build executed.", repairs, supportRepair.error(), accumulator.appliedRotation, Math.max(1, accumulator.phases));
+			return new CompiledBuild(false, List.of(), "No build executed.", repairs, supportRepair.error(), accumulator.appliedRotation, Math.max(1, accumulator.phases), toGridPoint(resolvedOrigin), supportRepair.issues(), supportRepair.autoFixAvailable());
 		}
 		repairs.addAll(supportRepair.repairs());
 		List<String> commands = new ArrayList<>(supportRepair.commands());
 		commands.addAll(accumulator.commands);
 		if (commands.isEmpty()) {
 			return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-					"Build plan did not contain any valid clear volumes, cuboids, or blocks.", accumulator.appliedRotation, Math.max(1, accumulator.phases));
+					"Build plan did not contain any valid clear volumes, cuboids, or blocks.", accumulator.appliedRotation, Math.max(1, accumulator.phases), toGridPoint(resolvedOrigin), supportRepair.issues(), supportRepair.autoFixAvailable());
 		}
 
 		String summary = plan.summary() == null || plan.summary().isBlank()
@@ -165,7 +192,27 @@ final class VoxelBuildPlanner {
 		if (accumulator.phases > 1) {
 			summary = summary + " (" + accumulator.phases + " phases)";
 		}
-		return new CompiledBuild(true, commands, summary, repairs, "", accumulator.appliedRotation, Math.max(1, accumulator.phases));
+		return new CompiledBuild(true, commands, summary, repairs, "", accumulator.appliedRotation, Math.max(1, accumulator.phases), toGridPoint(resolvedOrigin), supportRepair.issues(), supportRepair.autoFixAvailable());
+	}
+
+	private static CompiledBuild prependRepairs(CompiledBuild compiled, List<String> prefixRepairs) {
+		if (compiled == null || prefixRepairs == null || prefixRepairs.isEmpty()) {
+			return compiled;
+		}
+		List<String> mergedRepairs = new ArrayList<>(prefixRepairs);
+		mergedRepairs.addAll(compiled.repairs());
+		return new CompiledBuild(
+				compiled.valid(),
+				compiled.commands(),
+				compiled.summary(),
+				mergedRepairs,
+				compiled.error(),
+				compiled.appliedRotation(),
+				compiled.phases(),
+				compiled.resolvedOrigin(),
+				compiled.issues(),
+				compiled.autoFixAvailable()
+		);
 	}
 
 	static String summarizeBuildSite(ServerPlayerEntity player, int requestedRadius) {
@@ -247,7 +294,7 @@ final class VoxelBuildPlanner {
 
 	private static boolean isReservedTopLevelField(String key) {
 		return switch (key) {
-			case "summary", "description", "message", "anchor", "origin", "offset", "palette", "clear", "cuboids", "blocks", "steps", "rotate", "rotation" -> true;
+			case "summary", "description", "message", "anchor", "coordMode", "coordinateMode", "origin", "offset", "autoFix", "palette", "clear", "cuboids", "blocks", "steps", "rotate", "rotation" -> true;
 			default -> false;
 		};
 	}
@@ -277,8 +324,11 @@ final class VoxelBuildPlanner {
 			steps.add(new BuildStep(phase == null || phase.isBlank() ? "phase" : phase, new BuildPlan(
 					summary,
 					stepPlan.anchor(),
+					stepPlan.coordMode(),
+					stepPlan.origin(),
 					stepPlan.offset(),
 					stepPlan.rotationDegrees(),
+					stepPlan.autoFix(),
 					stepPlan.palette(),
 					stepPlan.clearVolumes(),
 					stepPlan.cuboids(),
@@ -575,6 +625,15 @@ final class VoxelBuildPlanner {
 
 	private static int clamp(int value, int min, int max) {
 		return Math.max(min, Math.min(max, value));
+	}
+
+	private static String normalizeCoordMode(String raw, String fallback) {
+		String normalized = raw == null || raw.isBlank() ? fallback : raw.trim().toLowerCase(Locale.ROOT);
+		return switch (normalized) {
+			case "absolute", "world" -> "absolute";
+			case "player", "relative" -> "player";
+			default -> fallback == null || fallback.isBlank() ? "player" : fallback;
+		};
 	}
 
 	private static int parseRotation(JsonObject obj, int fallback) {
@@ -916,11 +975,12 @@ final class VoxelBuildPlanner {
 	private static CompiledBuild compilePlanInto(
 			ServerPlayerEntity player,
 			BuildPlan plan,
+			BlockPos origin,
 			List<String> repairs,
 			CompileAccumulator accumulator
 	) {
 		if (plan == null) {
-			return new CompiledBuild(false, List.of(), "No build executed.", repairs, "Missing phased build plan.", 0, Math.max(1, accumulator.phases));
+			return new CompiledBuild(false, List.of(), "No build executed.", repairs, "Missing phased build plan.", 0, Math.max(1, accumulator.phases), toGridPoint(origin), List.of(), false);
 		}
 		String anchor = plan.anchor() == null || plan.anchor().isBlank() ? "player" : plan.anchor().trim().toLowerCase(Locale.ROOT);
 		if (!"player".equals(anchor)) {
@@ -928,8 +988,6 @@ final class VoxelBuildPlanner {
 		}
 		int rotation = normalizeRotation(plan.rotationDegrees(), repairs);
 		accumulator.appliedRotation = rotation;
-		GridPoint originOffset = clampPoint(plan.offset(), repairs, "origin");
-		BlockPos origin = player.getBlockPos().add(originOffset.x(), originOffset.y(), originOffset.z());
 
 		boolean hasDirectOps = !plan.clearVolumes().isEmpty() || !plan.cuboids().isEmpty() || !plan.blocks().isEmpty();
 		if (hasDirectOps) {
@@ -942,7 +1000,7 @@ final class VoxelBuildPlanner {
 			accumulator.totalVolume += bounds.volume();
 			if (accumulator.totalVolume > MAX_TOTAL_VOLUME) {
 				return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-						"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases));
+						"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases), toGridPoint(origin), List.of(), false);
 			}
 			BlockPos start = toAbsolute(origin, bounds.from());
 			BlockPos end = toAbsolute(origin, bounds.to());
@@ -952,36 +1010,42 @@ final class VoxelBuildPlanner {
 
 		if (plan.cuboids().size() > MAX_BUILD_CUBOIDS) {
 			return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-					"Build plan has too many cuboids (" + plan.cuboids().size() + " > " + MAX_BUILD_CUBOIDS + ").", rotation, Math.max(1, accumulator.phases));
+					"Build plan has too many cuboids (" + plan.cuboids().size() + " > " + MAX_BUILD_CUBOIDS + ").", rotation, Math.max(1, accumulator.phases), toGridPoint(origin), List.of(), false);
 		}
 		if (plan.blocks().size() > MAX_BUILD_BLOCKS) {
 			return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-					"Build plan has too many single blocks (" + plan.blocks().size() + " > " + MAX_BUILD_BLOCKS + ").", rotation, Math.max(1, accumulator.phases));
+					"Build plan has too many single blocks (" + plan.blocks().size() + " > " + MAX_BUILD_BLOCKS + ").", rotation, Math.max(1, accumulator.phases), toGridPoint(origin), List.of(), false);
 		}
 
-		for (Cuboid cuboid : plan.cuboids()) {
+		List<Cuboid> orderedCuboids = new ArrayList<>(plan.cuboids());
+		orderedCuboids.sort(Comparator
+				.comparingInt((Cuboid cuboid) -> cuboid.from().y())
+				.thenComparingInt(cuboid -> cuboidOrderHint(cuboid.name()))
+				.thenComparing(Cuboid::name, Comparator.nullsLast(String::compareToIgnoreCase)));
+		for (Cuboid cuboid : orderedCuboids) {
 			ResolvedBlock resolved = resolveBlock(cuboid.block(), rotateProperties(cuboid.properties(), rotation), plan.palette(), repairs, cuboid.name());
 			if (!resolved.valid()) {
-				return new CompiledBuild(false, List.of(), "No build executed.", repairs, resolved.error(), rotation, Math.max(1, accumulator.phases));
+				return new CompiledBuild(false, List.of(), "No build executed.", repairs, resolved.error(), rotation, Math.max(1, accumulator.phases), toGridPoint(origin), List.of(), false);
 			}
 			Bounds bounds = clampBounds(cuboid.from(), cuboid.to(), repairs, "cuboid:" + cuboid.name());
 			bounds = rotateBounds(bounds, rotation);
 			accumulator.totalVolume += bounds.volume();
 			if (accumulator.totalVolume > MAX_TOTAL_VOLUME) {
 				return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-						"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases));
+						"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases), toGridPoint(origin), List.of(), false);
 			}
 			String fillMode = normalizeFillMode(cuboid.fillMode(), cuboid.hollow(), repairs, cuboid.name());
 			BlockPos start = toAbsolute(origin, bounds.from());
 			BlockPos end = toAbsolute(origin, bounds.to());
 			accumulator.commands.add(fillCommand(start, end, resolved.blockString(), fillMode));
 			trackCuboidPlacements(accumulator.occupiedBlocks, start, end, resolved.blockString(), fillMode);
+			accumulator.supportTargets.add(new SupportTarget(cuboid.name(), start, end));
 		}
 
 		for (BlockPlacement block : plan.blocks()) {
 			ResolvedBlock resolved = resolveBlock(block.block(), rotateProperties(block.properties(), rotation), plan.palette(), repairs, block.name());
 			if (!resolved.valid()) {
-				return new CompiledBuild(false, List.of(), "No build executed.", repairs, resolved.error(), rotation, Math.max(1, accumulator.phases));
+				return new CompiledBuild(false, List.of(), "No build executed.", repairs, resolved.error(), rotation, Math.max(1, accumulator.phases), toGridPoint(origin), List.of(), false);
 			}
 			GridPoint clampedPos = clampPoint(block.pos(), repairs, "block:" + block.name());
 			clampedPos = rotatePoint(clampedPos, rotation);
@@ -989,21 +1053,39 @@ final class VoxelBuildPlanner {
 			for (Placement placement : placements) {
 				accumulator.commands.add("setblock " + coords(placement.pos()) + " " + placement.blockString());
 				accumulator.occupiedBlocks.put(placement.pos().toImmutable(), placement.blockString());
+				accumulator.supportTargets.add(new SupportTarget(block.name(), placement.pos(), placement.pos()));
 			}
 			accumulator.totalVolume += placements.size();
 			if (accumulator.totalVolume > MAX_TOTAL_VOLUME) {
 				return new CompiledBuild(false, List.of(), "No build executed.", repairs,
-						"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases));
+						"Build plan exceeds the maximum volume budget of " + MAX_TOTAL_VOLUME + " blocks.", rotation, Math.max(1, accumulator.phases), toGridPoint(origin), List.of(), false);
 			}
 		}
 
 		for (BuildStep step : plan.steps()) {
-			CompiledBuild failure = compilePlanInto(player, step.plan(), repairs, accumulator);
+			CompiledBuild failure = compilePlanInto(player, step.plan(), origin, repairs, accumulator);
 			if (failure != null) {
 				return failure;
 			}
 		}
 		return null;
+	}
+
+	private static int cuboidOrderHint(String name) {
+		String lower = name == null ? "" : name.toLowerCase(Locale.ROOT);
+		if (containsAny(lower, "foundation", "base", "floor", "platform")) {
+			return 0;
+		}
+		if (containsAny(lower, "wall", "pillar", "column", "frame")) {
+			return 1;
+		}
+		if (containsAny(lower, "roof", "ceiling")) {
+			return 2;
+		}
+		if (containsAny(lower, "detail", "window", "door", "trim", "decor")) {
+			return 3;
+		}
+		return 4;
 	}
 
 	private static void removeTrackedBlocks(Map<BlockPos, String> occupiedBlocks, BlockPos start, BlockPos end) {
@@ -1052,57 +1134,126 @@ final class VoxelBuildPlanner {
 		}
 	}
 
-	private static SupportRepair repairSupportColumns(ServerWorld world, CompileAccumulator accumulator) {
-		if (world == null || accumulator.occupiedBlocks.isEmpty()) {
+	private static SupportRepair repairSupportColumns(ServerWorld world, CompileAccumulator accumulator, boolean autoFix) {
+		if (world == null || accumulator.occupiedBlocks.isEmpty() || accumulator.supportTargets.isEmpty()) {
 			return SupportRepair.success();
 		}
-		Map<ColumnKey, BlockPos> lowestByColumn = new LinkedHashMap<>();
-		int globalMinY = Integer.MAX_VALUE;
-		for (BlockPos pos : accumulator.occupiedBlocks.keySet()) {
-			globalMinY = Math.min(globalMinY, pos.getY());
-			ColumnKey key = new ColumnKey(pos.getX(), pos.getZ());
-			BlockPos current = lowestByColumn.get(key);
-			if (current == null || pos.getY() < current.getY()) {
-				lowestByColumn.put(key, pos);
+		int globalMinY = accumulator.supportTargets.stream()
+				.mapToInt(target -> Math.min(target.from().getY(), target.to().getY()))
+				.min()
+				.orElse(Integer.MAX_VALUE);
+		List<SupportTarget> groundTargets = accumulator.supportTargets.stream()
+				.filter(target -> Math.min(target.from().getY(), target.to().getY()) == globalMinY)
+				.toList();
+		List<SupportIssue> issues = new ArrayList<>();
+		List<Pillar> pendingPillars = new ArrayList<>();
+		List<Integer> nearGaps = new ArrayList<>();
+		int totalColumns = 0;
+		int nearGroundColumns = 0;
+		int missingGroundColumns = 0;
+		for (SupportTarget target : groundTargets) {
+			TargetSupportStats stats = analyzeSupportTarget(world, accumulator.occupiedBlocks, target);
+			totalColumns += stats.totalColumns();
+			nearGroundColumns += stats.nearGroundColumns();
+			missingGroundColumns += stats.missingGroundColumns();
+			nearGaps.addAll(stats.nearGaps());
+			pendingPillars.addAll(stats.pillars());
+			if (stats.hasIssue()) {
+				issues.add(new SupportIssue(target.name(), "floating", stats.maxGap(), stats.suggestedY()));
 			}
+		}
+		boolean autoFixAvailable = !issues.isEmpty();
+		if (autoFix && totalColumns > 0 && missingGroundColumns == 0 && ((nearGroundColumns * 1.0D) / totalColumns) >= 0.80D) {
+			int commonGap = mostCommonPositiveGap(nearGaps);
+			if (commonGap > 0 && commonGap <= 2) {
+				return new SupportRepair(false, List.of(), List.of(), "Auto-shifting build to nearby terrain.", issues, true, commonGap);
+			}
+		}
+		if (missingGroundColumns > 0) {
+			return new SupportRepair(false, List.of(), List.of(), summarizeSupportIssues(issues, "Build plan leaves unsupported columns with no solid ground below."), issues, autoFixAvailable, 0);
+		}
+		if (pendingPillars.size() > MAX_AUTO_FOUNDATION_COLUMNS) {
+			return new SupportRepair(false, List.of(), List.of(), summarizeSupportIssues(issues, "Build plan would require " + pendingPillars.size() + " support pillars."), issues, autoFixAvailable, 0);
+		}
+		if (pendingPillars.isEmpty()) {
+			return new SupportRepair(true, List.of(), List.of(), "", issues, autoFixAvailable, 0);
 		}
 		List<String> repairs = new ArrayList<>();
 		List<String> commands = new ArrayList<>();
-		List<Pillar> pendingPillars = new ArrayList<>();
-		int unsupportedColumns = 0;
 		String foundationBlock = DEFAULT_FOUNDATION_BLOCK;
-		for (BlockPos lowest : lowestByColumn.values()) {
-			if (lowest.getY() != globalMinY) {
-				continue;
-			}
-			if (hasSupportBelow(world, accumulator.occupiedBlocks, lowest)) {
-				continue;
-			}
-			BlockPos anchor = findSupportAnchor(world, accumulator.occupiedBlocks, lowest.down());
-			if (anchor == null) {
-				unsupportedColumns++;
-				continue;
-			}
-			if (anchor.getY() + 1 >= lowest.getY()) {
-				continue;
-			}
-			pendingPillars.add(new Pillar(new BlockPos(lowest.getX(), anchor.getY() + 1, lowest.getZ()), new BlockPos(lowest.getX(), lowest.getY() - 1, lowest.getZ())));
-		}
-		if (unsupportedColumns > 0) {
-			return SupportRepair.failure("Build plan leaves " + unsupportedColumns + " unsupported column(s) with no solid ground below. Add a foundation, lower the build, or use steps with a foundation phase.");
-		}
-		if (pendingPillars.size() > MAX_AUTO_FOUNDATION_COLUMNS) {
-			return SupportRepair.failure("Build plan would require " + pendingPillars.size() + " support pillars. Add an explicit foundation or split the build into phases.");
-		}
-		if (pendingPillars.isEmpty()) {
-			return SupportRepair.success();
-		}
 		for (Pillar pillar : pendingPillars) {
 			commands.add(fillCommand(pillar.from(), pillar.to(), foundationBlock, null));
 			trackCuboidPlacements(accumulator.occupiedBlocks, pillar.from(), pillar.to(), foundationBlock, "");
 		}
 		repairs.add("Added " + pendingPillars.size() + " support pillar(s) using '" + foundationBlock + "' to anchor the build.");
-		return new SupportRepair(true, commands, repairs, "");
+		return new SupportRepair(true, commands, repairs, "", issues, autoFixAvailable, 0);
+	}
+
+	private static String summarizeSupportIssues(List<SupportIssue> issues, String prefix) {
+		if (issues == null || issues.isEmpty()) {
+			return prefix;
+		}
+		List<String> details = new ArrayList<>();
+		for (int i = 0; i < Math.min(3, issues.size()); i++) {
+			SupportIssue issue = issues.get(i);
+			details.add(issue.cuboid() + " gap=" + issue.gapBelow() + " suggestedY=" + issue.suggestedY());
+		}
+		return prefix + " Floating targets: " + String.join(", ", details) + ".";
+	}
+
+	private static int mostCommonPositiveGap(List<Integer> gaps) {
+		Map<Integer, Integer> counts = new LinkedHashMap<>();
+		for (int gap : gaps) {
+			if (gap > 0) {
+				counts.merge(gap, 1, Integer::sum);
+			}
+		}
+		return counts.entrySet().stream()
+				.max(Map.Entry.<Integer, Integer>comparingByValue().thenComparing(Map.Entry::getKey))
+				.map(Map.Entry::getKey)
+				.orElse(0);
+	}
+
+	private static TargetSupportStats analyzeSupportTarget(ServerWorld world, Map<BlockPos, String> occupiedBlocks, SupportTarget target) {
+		int minX = Math.min(target.from().getX(), target.to().getX());
+		int maxX = Math.max(target.from().getX(), target.to().getX());
+		int minZ = Math.min(target.from().getZ(), target.to().getZ());
+		int maxZ = Math.max(target.from().getZ(), target.to().getZ());
+		int baseY = Math.min(target.from().getY(), target.to().getY());
+		int totalColumns = 0;
+		int nearGroundColumns = 0;
+		int missingGroundColumns = 0;
+		int maxGap = 0;
+		int suggestedY = baseY;
+		List<Integer> nearGaps = new ArrayList<>();
+		List<Pillar> pillars = new ArrayList<>();
+		for (int x = minX; x <= maxX; x++) {
+			for (int z = minZ; z <= maxZ; z++) {
+				totalColumns++;
+				BlockPos lowest = new BlockPos(x, baseY, z);
+				if (hasSupportBelow(world, occupiedBlocks, lowest)) {
+					nearGroundColumns++;
+					continue;
+				}
+				BlockPos anchor = findSupportAnchor(world, occupiedBlocks, lowest.down());
+				if (anchor == null) {
+					missingGroundColumns++;
+					maxGap = Math.max(maxGap, baseY - world.getBottomY());
+					continue;
+				}
+				int gap = Math.max(0, baseY - (anchor.getY() + 1));
+				suggestedY = Math.max(suggestedY, anchor.getY() + 1);
+				maxGap = Math.max(maxGap, gap);
+				if (gap <= 2) {
+					nearGroundColumns++;
+					nearGaps.add(gap);
+				}
+				if (anchor.getY() + 1 < baseY) {
+					pillars.add(new Pillar(new BlockPos(x, anchor.getY() + 1, z), new BlockPos(x, baseY - 1, z)));
+				}
+			}
+		}
+		return new TargetSupportStats(totalColumns, nearGroundColumns, missingGroundColumns, maxGap, suggestedY, nearGaps, pillars);
 	}
 
 	private static boolean hasSupportBelow(ServerWorld world, Map<BlockPos, String> occupiedBlocks, BlockPos pos) {
@@ -1262,6 +1413,164 @@ final class VoxelBuildPlanner {
 		return origin.add(point.x(), point.y(), point.z());
 	}
 
+	private static GridPoint toGridPoint(BlockPos pos) {
+		return new GridPoint(pos.getX(), pos.getY(), pos.getZ());
+	}
+
+	private static BuildPlan shiftPlanForIssues(BuildPlan plan, List<SupportIssue> issues, List<String> repairs) {
+		if (plan == null || issues == null || issues.isEmpty()) {
+			return null;
+		}
+		Map<String, Integer> deltasByName = new LinkedHashMap<>();
+		for (SupportIssue issue : issues) {
+			if (issue == null || issue.cuboid() == null || issue.cuboid().isBlank() || issue.gapBelow() <= 0) {
+				continue;
+			}
+			deltasByName.put(issue.cuboid(), -issue.gapBelow());
+		}
+		if (deltasByName.isEmpty()) {
+			return null;
+		}
+		ShiftResult result = shiftPlanForIssuesRecursive(plan, deltasByName, repairs);
+		return result.changed() ? result.plan() : null;
+	}
+
+	private static ShiftResult shiftPlanForIssuesRecursive(BuildPlan plan, Map<String, Integer> deltasByName, List<String> repairs) {
+		List<Integer> directDeltas = new ArrayList<>();
+		for (Cuboid cuboid : plan.cuboids()) {
+			Integer delta = deltasByName.get(cuboid.name());
+			if (delta != null && delta != 0) {
+				directDeltas.add(delta);
+			}
+		}
+		for (BlockPlacement block : plan.blocks()) {
+			Integer delta = deltasByName.get(block.name());
+			if (delta != null && delta != 0) {
+				directDeltas.add(delta);
+			}
+		}
+		if (!directDeltas.isEmpty()) {
+			int shiftDelta = chooseShiftDelta(directDeltas);
+			repairs.add("Auto-shifted build section by " + shiftDelta + " on Y to ground floating targets.");
+			return new ShiftResult(shiftWholePlan(plan, shiftDelta), true);
+		}
+
+		boolean changed = false;
+		List<BuildStep> shiftedSteps = new ArrayList<>();
+		for (BuildStep step : plan.steps()) {
+			ShiftResult result = shiftPlanForIssuesRecursive(step.plan(), deltasByName, repairs);
+			changed |= result.changed();
+			shiftedSteps.add(new BuildStep(step.phase(), result.plan()));
+		}
+		if (!changed) {
+			return new ShiftResult(plan, false);
+		}
+		return new ShiftResult(new BuildPlan(
+				plan.summary(),
+				plan.anchor(),
+				plan.coordMode(),
+				plan.origin(),
+				plan.offset(),
+				plan.rotationDegrees(),
+				plan.autoFix(),
+				plan.palette(),
+				plan.clearVolumes(),
+				plan.cuboids(),
+				plan.blocks(),
+				shiftedSteps
+		), true);
+	}
+
+	private static int chooseShiftDelta(List<Integer> deltas) {
+		Map<Integer, Integer> counts = new LinkedHashMap<>();
+		for (int delta : deltas) {
+			counts.merge(delta, 1, Integer::sum);
+		}
+		return counts.entrySet().stream()
+				.max(Map.Entry.<Integer, Integer>comparingByValue().thenComparing(entry -> Math.abs(entry.getKey())))
+				.map(Map.Entry::getKey)
+				.orElse(0);
+	}
+
+	private static BuildPlan shiftWholePlan(BuildPlan plan, int deltaY) {
+		if (plan == null || deltaY == 0) {
+			return plan;
+		}
+		List<Volume> shiftedClear = new ArrayList<>();
+		for (Volume volume : plan.clearVolumes()) {
+			shiftedClear.add(new Volume(volume.name(), shiftPoint(volume.from(), deltaY), shiftPoint(volume.to(), deltaY)));
+		}
+		List<Cuboid> shiftedCuboids = new ArrayList<>();
+		for (Cuboid cuboid : plan.cuboids()) {
+			shiftedCuboids.add(new Cuboid(
+					cuboid.name(),
+					cuboid.block(),
+					cuboid.properties(),
+					shiftPoint(cuboid.from(), deltaY),
+					shiftPoint(cuboid.to(), deltaY),
+					cuboid.fillMode(),
+					cuboid.hollow()
+			));
+		}
+		List<BlockPlacement> shiftedBlocks = new ArrayList<>();
+		for (BlockPlacement block : plan.blocks()) {
+			shiftedBlocks.add(new BlockPlacement(block.name(), block.block(), block.properties(), shiftPoint(block.pos(), deltaY)));
+		}
+		List<BuildStep> shiftedSteps = new ArrayList<>();
+		for (BuildStep step : plan.steps()) {
+			shiftedSteps.add(new BuildStep(step.phase(), shiftWholePlan(step.plan(), deltaY)));
+		}
+		return new BuildPlan(
+				plan.summary(),
+				plan.anchor(),
+				plan.coordMode(),
+				plan.origin(),
+				plan.offset(),
+				plan.rotationDegrees(),
+				plan.autoFix(),
+				plan.palette(),
+				shiftedClear,
+				shiftedCuboids,
+				shiftedBlocks,
+				shiftedSteps
+		);
+	}
+
+	private static GridPoint shiftPoint(GridPoint point, int deltaY) {
+		if (point == null || deltaY == 0) {
+			return point;
+		}
+		return new GridPoint(point.x(), point.y() + deltaY, point.z());
+	}
+
+	private static BlockPos resolveOrigin(ServerPlayerEntity player, BuildPlan plan, List<String> repairs) {
+		BlockPos playerOrigin = player.getBlockPos();
+		String coordMode = normalizeCoordMode(plan.coordMode(), "player");
+		if ("absolute".equals(coordMode)) {
+			GridPoint explicit = plan.origin();
+			if (explicit == null) {
+				repairs.add("Using player position as origin: " + playerOrigin.getX() + ", " + playerOrigin.getY() + ", " + playerOrigin.getZ() + ".");
+				explicit = toGridPoint(playerOrigin);
+			}
+			BlockPos absoluteOrigin = new BlockPos(explicit.x(), explicit.y(), explicit.z());
+			if (plan.offset() != null) {
+				GridPoint offset = clampPoint(plan.offset(), repairs, "offset");
+				absoluteOrigin = absoluteOrigin.add(offset.x(), offset.y(), offset.z());
+			}
+			return absoluteOrigin;
+		}
+		GridPoint relative = plan.origin();
+		if (relative == null) {
+			relative = plan.offset();
+		}
+		if (relative == null) {
+			repairs.add("Using player position as origin: " + playerOrigin.getX() + ", " + playerOrigin.getY() + ", " + playerOrigin.getZ() + ".");
+			return playerOrigin;
+		}
+		GridPoint clamped = clampPoint(relative, repairs, "origin");
+		return playerOrigin.add(clamped.x(), clamped.y(), clamped.z());
+	}
+
 	private static BlockPos findSurface(ServerWorld world, BlockPos pos, int baseY) {
 		for (int dy = MAX_SITE_SCAN_UP; dy >= -MAX_SITE_SCAN_DOWN; dy--) {
 			BlockPos candidate = new BlockPos(pos.getX(), baseY + dy, pos.getZ());
@@ -1279,8 +1588,11 @@ final class VoxelBuildPlanner {
 	record BuildPlan(
 			String summary,
 			String anchor,
+			String coordMode,
+			GridPoint origin,
 			GridPoint offset,
 			int rotationDegrees,
+			boolean autoFix,
 			Map<String, String> palette,
 			List<Volume> clearVolumes,
 			List<Cuboid> cuboids,
@@ -1295,7 +1607,10 @@ final class VoxelBuildPlanner {
 			List<String> repairs,
 			String error,
 			int appliedRotation,
-			int phases
+			int phases,
+			GridPoint resolvedOrigin,
+			List<SupportIssue> issues,
+			boolean autoFixAvailable
 	) {}
 
 	record GridPoint(int x, int y, int z) {}
@@ -1330,15 +1645,27 @@ final class VoxelBuildPlanner {
 
 	record Pillar(BlockPos from, BlockPos to) {}
 
-	record SupportRepair(boolean valid, List<String> commands, List<String> repairs, String error) {
+	record SupportRepair(
+			boolean valid,
+			List<String> commands,
+			List<String> repairs,
+			String error,
+			List<SupportIssue> issues,
+			boolean autoFixAvailable,
+			int autoShiftDown
+	) {
 		static SupportRepair success() {
-			return new SupportRepair(true, List.of(), List.of(), "");
+			return new SupportRepair(true, List.of(), List.of(), "", List.of(), false, 0);
 		}
 
 		static SupportRepair failure(String error) {
-			return new SupportRepair(false, List.of(), List.of(), error);
+			return new SupportRepair(false, List.of(), List.of(), error, List.of(), false, 0);
 		}
 	}
+
+	record SupportIssue(String cuboid, String issue, int gapBelow, int suggestedY) {}
+
+	record SupportTarget(String name, BlockPos from, BlockPos to) {}
 
 	record SurfaceCount(String blockId, int count) {}
 
@@ -1353,12 +1680,34 @@ final class VoxelBuildPlanner {
 	) {}
 
 	private static final class CompileAccumulator {
+		private final BlockPos resolvedOrigin;
 		private final List<String> commands = new ArrayList<>();
 		private final LinkedHashMap<BlockPos, String> occupiedBlocks = new LinkedHashMap<>();
+		private final List<SupportTarget> supportTargets = new ArrayList<>();
 		private long totalVolume = 0L;
 		private int phases = 0;
 		private int appliedRotation = 0;
+
+		private CompileAccumulator(BlockPos resolvedOrigin) {
+			this.resolvedOrigin = resolvedOrigin;
+		}
 	}
+
+	record TargetSupportStats(
+			int totalColumns,
+			int nearGroundColumns,
+			int missingGroundColumns,
+			int maxGap,
+			int suggestedY,
+			List<Integer> nearGaps,
+			List<Pillar> pillars
+	) {
+		boolean hasIssue() {
+			return missingGroundColumns > 0 || maxGap > 0;
+		}
+	}
+
+	record ShiftResult(BuildPlan plan, boolean changed) {}
 
 	record ResolvedBlock(
 			String blockId,

@@ -392,6 +392,12 @@ The build-plan tool accepts either:
 - a root object that is itself the build plan
 - or a wrapper object with top-level `build_plan`
 
+Important top-level planning fields:
+- `coordMode`: `player` or `absolute`
+- `origin`: in `player` mode this is a relative shift from the player; in `absolute` mode it is an explicit world origin
+- `offset`: optional extra relative shift after the base origin
+- `autoFix`: allows safe grounding fixes like small auto-lowers and limited support repair
+
 Minimal example:
 
 ```json
@@ -418,20 +424,27 @@ Agents should not treat the build planner as a black box. The most important rul
 
 - `minecraft_buildsite` returns terrain deltas relative to the player’s current block Y, not absolute world Y.
 - If `maxDy` is negative, the surrounding surface is below the player. A build with floor `y=0` will float unless the plan is lowered or the player moves.
+- `coordMode=absolute` is the right choice when the structure needs to stay locked to a specific world location instead of wherever the player happens to be standing.
+- If `coordMode=absolute` is used without `origin`, the planner falls back to the player’s block position and reports that fallback in `repairs`.
 - `clearPercent` is headroom above sampled surface columns, not proof that the terrain is flat.
 - The planner clamps relative X/Z into `[-32, 32]` and relative Y into `[-24, 24]`. If a plan is too large or too far away, the result includes repairs saying it was clamped into the safe build window.
 - `steps` should be used for phased builds like foundation -> shell -> roof -> details.
 - `clear` volumes remove space before building and use the same bounds formats as cuboids, but without a block id.
 - `rotate` accepts `0`, `90`, `180`, `270`, `cw`, and `ccw`, and the result reports the final normalized value in `appliedRotation`.
 - `phaseCount` reports how many direct-operation phases were compiled from `clear`, `cuboids`, `blocks`, and `steps`.
-- The planner can auto-add support pillars using `minecraft:stone_bricks`, but only up to 24 lowest columns. Beyond that, the agent should add an explicit foundation or split the build into phases.
+- The planner now returns structured `issues` identifying floating cuboids or block targets, their `gapBelow`, and a `suggestedY` to ground them correctly.
+- The planner only adds support pillars for real unsupported columns and caps auto-support at 24 columns.
+- If more than 80% of the lowest build columns are already within 2 blocks of solid ground and `autoFix=true`, the planner can auto-lower the whole build instead of spamming pillars.
+- `resolvedOrigin` in the result tells you the exact world origin that was actually used.
+- `autoFixAvailable` tells you whether the planner believes a safe grounding fix exists.
 
 If an agent gets a support-pillar failure, the correct response is usually:
 
 1. Re-read `minecraft_buildsite`
-2. Lower the build or move the player to the intended surface level
-3. Add a foundation phase in `steps`
-4. Retry with a grounded plan
+2. Inspect `issues` and `suggestedY`
+3. Lower the build or move the player to the intended surface level
+4. Add a foundation phase in `steps`
+5. Retry with a grounded plan
 
 Do not keep retrying the same floating `y=0` structure and assume the JSON schema is wrong.
 
@@ -445,9 +458,20 @@ For terrain-sensitive or unfamiliar builds, agents should use:
    - `repairs`
    - `appliedRotation`
    - `phaseCount`
+   - `resolvedOrigin`
+   - `issues`
    - `previewCommands`
-4. Revise the plan if needed
-5. Then call `minecraft_execute_build_plan`
+4. Save the returned `planId` if the preview looks good
+5. Revise the plan if needed
+6. Then call `minecraft_execute_build_plan`
+
+Best practice is:
+
+```json
+{ "executePlanId": "plan-..." }
+```
+
+That makes execute run the exact cached preview instead of recompiling a fresh variant.
 
 `minecraft_preview_build_plan` uses the same planner and command validation as the real build path, but it does not mutate the world and does not create an undo batch.
 
